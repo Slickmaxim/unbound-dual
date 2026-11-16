@@ -181,3 +181,5 @@ Sonic Advance 1 and 2, Ace Combat Advance, Asterix, Downhill Jam, Pokémon Emera
 - 🧪 One CIA named Pokémon Unbound, automatic configured-ROM startup without a separate forwarder. Same title ID as the v3 application, CIA micro version 4. Missing ROM opens the picker; START cancels and exits. ROM selection remains available in System/config. Build/package only the single CIA; keep v3 historical artifacts. Console installation/autostart test pending.
 
 - ✅ slickmaxim: clean publication source snapshot, PokeDaisy GPLv3 credit/NOTICE and source-only Git repository.
+
+- ✅ slickmaxim: publication README with original SVG banner, install/save/settings guide and preserved PokeDaisy attribution.

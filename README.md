@@ -1,76 +1,140 @@
-# gpSP Pokémon — Unbound Companion
+<p align="center">
+  <img src="docs/assets/banner.svg" alt="gpSP Pokémon — Unbound Companion: your adventure above, your team below" width="100%">
+</p>
 
-A Nintendo 3DS application combining [gpSP 3D](https://github.com/bheppe/gpsp-3d)
-with read-only PokeDaisy tabs on the bottom screen. Intended for Pokémon Unbound
-2.1.1.1 English, including Old 3DS in 2D.
+<p align="center">
+  <a href="LICENSE"><img alt="License: GPLv3 with attribution" src="https://img.shields.io/badge/license-GPLv3-a98be5?style=flat-square"></a>
+  <img alt="Platform: Nintendo 3DS" src="https://img.shields.io/badge/platform-Nintendo_3DS-8be5d0?style=flat-square">
+  <img alt="Supported ROM: Unbound 2.1.1.1 EN" src="https://img.shields.io/badge/Unbound-2.1.1.1_EN-c3a6ff?style=flat-square">
+  <img alt="Status: experimental" src="https://img.shields.io/badge/status-experimental-e8bf7a?style=flat-square">
+</p>
 
-Based on PokeDaisy by Lidor Itzhari - https://github.com/lidor30/pokedaisy
+<p align="center">
+  <b>Play Pokémon Unbound on the top screen. Keep your team, bag and map within reach below.</b><br>
+  Powered by <a href="https://github.com/bheppe/gpsp-3d">gpSP 3D</a> and the portable companion interface from <a href="https://github.com/lidor30/pokedaisy">PokeDaisy</a>.
+</p>
 
-This is a modified community project, maintained by slickmaxim. It is not an
-official release of gpSP 3D, PokeDaisy or Pokémon Unbound.
+<p align="center">
+  <a href="#installation">Installation</a> ·
+  <a href="#the-bottom-screen">Features</a> ·
+  <a href="#saves-and-settings">Saves &amp; settings</a> ·
+  <a href="#building">Build</a> ·
+  <a href="README_COMPANION_UK.md">Українською</a>
+</p>
 
-## Features
+---
 
-- gpSP ARM11 JIT, original emulator menu, display/audio settings and save states.
-- Bottom screen: party and Pokémon details, bag, map and trainer card.
-- Light/dark companion theme and independent nearest/smooth bottom filtering.
-- ROM data cache for faster subsequent preparation.
-- One HOME Menu CIA with automatic startup of the selected ROM.
+## The bottom screen
 
-The trainer card currently has no badge overlay. ROM badge extraction is unfinished.
-Performance depends on the console, game scene and settings; this fork has no
-published benchmark guaranteeing 60 FPS in every scene.
+A companion for **Pokémon Unbound 2.1.1.1 English**, designed for Nintendo 3DS, including Old 3DS in 2D. The game runs through gpSP's ARM11 JIT; the companion reads game data to display useful information while you play.
 
-## Install
+| Tab | What you can see |
+| --- | --- |
+| **PARTY** | Your team, levels, HP, status, moves, PP and Pokémon details. |
+| **BAG** | Bag pockets, item quantities, names and descriptions. |
+| **MAP** | The Borrius map, your position and places. |
+| **CARD** | A PokeDaisy trainer card with front/back views. |
+| **MENU** | The original gpSP settings, saves and emulator controls. |
 
-Install `gpsp-pokemon-pokedaisy.cia` with FBI, or put the `.3dsx` on your SD card.
-On first launch, select your own patched Unbound 2.1.1.1 English ROM.
-Subsequent launches open the configured ROM automatically.
-ROM SHA-1: `b4776b82a4c7915d0fadeaa27e013523f99dfd94`.
-No ROM, Nintendo BIOS or saves are supplied. An open source BIOS replacement
-and its corresponding source are inherited from gpSP in `bios/`.
+Choose a **light or dark companion theme**, set bottom-screen artwork to **Nearest or Smooth**, and keep gpSP's display, audio, button mapping and save-state controls. Companion tabs are read-only: item use, trading, party editing and Fly are not implemented.
 
-Configuration: `sdmc:/3ds/gpsp3d/companion-gpsp3d.cfg`.
-Use **MENU → System → Save file** to see the active save path.
-Use **MENU → System → Unbound ROM** to select another ROM.
-[Ukrainian usage notes](README_COMPANION_UK.md) describe saves and controls.
+The app uses **one HOME Menu CIA**. Choose your ROM once; later launches open it automatically. Prepared ROM data is cached to speed up subsequent starts.
 
-## Build
+> **Experimental build:** hardware behavior and performance depend on the console, game scene and settings. Trainer-card badges are currently unavailable. The banner above is an illustration of the two-screen concept.
 
-Linux/WSL with Docker, Internet access and Python 3:
+## Installation
+
+You need a homebrew-enabled Nintendo 3DS and your own **Pokémon Unbound 2.1.1.1 English** ROM.
+
+1. Install `gpsp-pokemon-pokedaisy.cia` using FBI. For Homebrew Launcher, copy `gpsp-pokemon-pokedaisy.3dsx` to your SD card instead.
+2. Open **Pokémon Unbound** and select your ROM on the first launch.
+3. Let the initial data preparation finish. The first preparation takes longer; later starts can reuse cached data.
+4. Continue your game using **Continue** in Unbound. Automatic ROM startup does not automatically restore a save state.
+
+To choose a different ROM, open **MENU → System → Unbound ROM**. A missing or moved ROM opens the picker again.
+
+<details>
+<summary>ROM identity and application details</summary>
+
+| Item | Value |
+| --- | --- |
+| Supported game | Pokémon Unbound 2.1.1.1, English |
+| ROM SHA-1 | `b4776b82a4c7915d0fadeaa27e013523f99dfd94` |
+| Application Title ID | `000400000BAC8200` |
+| Companion CIA version | `0.0.4` |
+| Base emulator | gpSP 3D v0.1.7 |
+
+ROMs, Nintendo's BIOS and saves are not included. The open source BIOS replacement inherited from gpSP is supplied with its source under `bios/`.
+
+</details>
+
+## Saves and settings
+
+**Your saves are managed by gpSP.** Open **MENU → System → Save file** to see the active save location. Save files and save states are separate; keep a backup of your save before moving or renaming the ROM.
+
+| Setting | Where to find it |
+| --- | --- |
+| Companion theme | **MENU → Display → Companion theme** |
+| Bottom artwork filtering | **MENU → Display → Companion filtering** |
+| Game scaling | **MENU → Display → Scaling** |
+| Screen size | **MENU → Display → Screen size** |
+| Selected ROM | **MENU → System → Unbound ROM** |
+
+The companion configuration is stored at `sdmc:/3ds/gpsp3d/companion-gpsp3d.cfg`. Cached preparation data lives under `sdmc:/3ds/gpsp3d/companion-cache/`. The companion reads game data and does not edit your party or write its own game saves.
+
+For more detail, see the [Ukrainian usage guide](README_COMPANION_UK.md).
+
+## Building
+
+Use Linux or WSL with **Docker**, **Git** and **Python 3**. The Docker daemon must be running and accessible to your user. The first build needs Internet access for the toolchain image and CIA tools.
+
+From the repository root:
 
 ```sh
 make -C 3ds 3ds
 python3 gpsp3ds/companion/test/verify_cia.py gpsp3ds/out
 ```
 
-The build uses `devkitpro/devkitarm:latest`, devkitARM/libctru/citro3d, CMake,
-makerom 0.18.4 and bannertool 1.2.2. See `gpsp3ds/build-companion.sh` for the
-complete commands. Only the PokeDaisy companion is built. Outputs are in
-`gpsp3ds/out/`. The Docker image uses `latest`, so the toolchain is not fully pinned.
+Outputs:
 
-Host fixture checks require a separate PokeDaisy checkout:
+```text
+gpsp3ds/out/
+├── gpsp-pokemon-pokedaisy.cia
+└── gpsp-pokemon-pokedaisy.3dsx
+```
+
+The build produces only the PokeDaisy companion. It uses devkitARM, libctru and citro3d from `devkitpro/devkitarm:latest`, plus makerom **0.18.4** and bannertool **1.2.2**. The Docker toolchain is not fully pinned. Build commands are in [`gpsp3ds/build-companion.sh`](gpsp3ds/build-companion.sh).
+
+GitHub Actions provides a manual build and builds pushes to `main`; successful runs upload the companion artifacts and licensing notices. A release binary should be distributed with the corresponding source revision.
+
+<details>
+<summary>Host checks and source layout</summary>
+
+The fixture checks require a separate [PokeDaisy checkout](https://github.com/lidor30/pokedaisy):
 
 ```sh
 bash gpsp3ds/companion/test/run.sh /path/to/pokedaisy/app/src/test/resources/fixtures
 ```
 
-The tests check RAM readers, UI actions, allocations, caching and bottom scaling;
-they do not emulate a real 3DS or establish hardware performance.
+These checks cover RAM readers, touch actions, allocation cleanup, caching and bottom scaling. They do not emulate 3DS hardware or measure in-game FPS.
 
-## Source and licensing
+| Path | Purpose |
+| --- | --- |
+| Repository root | gpSP core and rendering code |
+| `gpsp3ds/source/` | Nintendo 3DS frontend and emulator menu |
+| `gpsp3ds/companion/` | Companion adapter, cache and UI integration |
+| `gpsp3ds/companion/vendor/` | Imported and adapted PokeDaisy components |
 
-The combined companion application is distributed under GNU GPL version 3,
-including PokeDaisy's attribution term in [NOTICE](NOTICE).
-See [LICENSE](LICENSE), [COPYING](COPYING) and the component notices in source.
-Individual upstream files retain their licenses; they have not been relicensed.
-GPU support adapted from mGBA retains MPL-2.0 and Inter retains OFL-1.1.
-[Third-party notices](THIRD_PARTY_NOTICES.md) record origin and modifications.
+See [AGENTS.md](AGENTS.md) and [README_AI_UK.md](README_AI_UK.md) for development context.
 
-When distributing a compiled build, provide the corresponding source of the
-same revision and retain its license and attribution notices alongside it.
-ROMs, saves, crash dumps, extracted game art, credentials, build caches and old
-releases are excluded from this source repository.
+</details>
 
-Pokémon and related names/artwork belong to their respective owners. This
-project is not affiliated with Nintendo, Game Freak or The Pokémon Company.
+## Credits and license
+
+**Based on PokeDaisy by Lidor Itzhari - https://github.com/lidor30/pokedaisy**
+
+This community fork is maintained by **slickmaxim**. Thanks to **bheppe and the gpSP 3D contributors**, **Exophase and the gpSP contributors**, and **Lidor Itzhari** for the emulator and companion foundations.
+
+The combined application is distributed under **GNU GPL version 3**, with PokeDaisy's attribution requirement. Read [LICENSE](LICENSE), [NOTICE](NOTICE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Individual components retain their original licenses, including gpSP's GPL notices, mGBA GPU code under MPL-2.0 and Inter under OFL-1.1.
+
+This is an unofficial fan project, unaffiliated with the original projects, Nintendo, Game Freak or The Pokémon Company. Pokémon names and artwork belong to their respective owners. No game ROMs, extracted game art, saves or crash dumps are included in this repository.
