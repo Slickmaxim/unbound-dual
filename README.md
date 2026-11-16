@@ -24,6 +24,15 @@
 
 ---
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/assets/game-top.png" alt="Pokémon Unbound running on the top screen" width="640"><br>
+  <img src="docs/assets/companion-bottom.png" alt="PokeDaisy party tab showing six Pokémon with their levels and HP on the bottom screen" width="512">
+</p>
+
+<p align="center"><sub>Top screen: Pokémon Unbound · Bottom screen: the PokeDaisy party tab in dark mode.<br>Captured on November 16, 2026. Game artwork belongs to its respective owners.</sub></p>
+
 ## The bottom screen
 
 A companion for **Pokémon Unbound 2.1.1.1 English**, designed for Nintendo 3DS, including Old 3DS in 2D. The game runs through gpSP's ARM11 JIT; the companion reads game data to display useful information while you play.

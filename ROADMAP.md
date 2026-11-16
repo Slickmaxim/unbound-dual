@@ -183,3 +183,5 @@ Sonic Advance 1 and 2, Ace Combat Advance, Asterix, Downhill Jam, Pokémon Emera
 - ✅ slickmaxim: clean publication source snapshot, PokeDaisy GPLv3 credit/NOTICE and source-only Git repository.
 
 - ✅ slickmaxim: publication README with original SVG banner, install/save/settings guide and preserved PokeDaisy attribution.
+
+- ✅ slickmaxim: add supplied top/bottom screen captures from 2026-11-16 to the publication README, converted losslessly from BMP to PNG.
