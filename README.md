@@ -49,7 +49,7 @@ Choose a **light or dark companion theme**, set bottom-screen artwork to **Neare
 
 The app uses **one HOME Menu CIA**. Choose your ROM once; later launches open it automatically. Prepared ROM data is cached to speed up subsequent starts.
 
-> **Experimental build:** hardware behavior and performance depend on the console, game scene and settings. Trainer-card badges are currently unavailable. The banner above is an illustration of the two-screen concept.
+> **Experimental build:** hardware behavior and performance depend on the console, game scene and settings. Trainer-card badges are currently unavailable. The banner uses the same game and companion captures shown above.
 
 ## Installation
 

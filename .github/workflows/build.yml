@@ -12,7 +12,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build PokeDaisy only
-        run: make -C 3ds 3ds
+        shell: bash
+        run: |
+          set -o pipefail
+          make -C 3ds 3ds 2>&1 | tee build.log
+      - name: Save build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pokedaisy-build-log
+          path: build.log
+          if-no-files-found: warn
       - name: Verify CIA
         run: python3 gpsp3ds/companion/test/verify_cia.py gpsp3ds/out
       - name: Include licensing notices
