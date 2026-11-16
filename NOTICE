@@ -1,0 +1,18 @@
+gpSP Pokémon — Unbound Companion
+Modified community application by slickmaxim, 2026-11-16.
+
+Based on PokeDaisy by Lidor Itzhari - https://github.com/lidor30/pokedaisy
+
+PokeDaisy Copyright (C) 2026 Lidor Itzhari.
+GNU GPL version 3, with the following additional attribution term under section 7(b):
+
+Anyone conveying PokeDaisy or a work based on it must preserve the attribution
+above in NOTICE, in the README or equivalent documentation, and wherever the
+work displays credits, an About screen or other appropriate legal notices.
+
+The original PokeDaisy NOTICE is preserved in gpsp3ds/companion/vendor/NOTICE.
+It lists the components of the full upstream app; this port includes only its
+portable companion C components. See THIRD_PARTY_NOTICES.md for this port.
+
+The program is provided WITHOUT ANY WARRANTY, including MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for GNU GPL v3 terms.

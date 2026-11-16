@@ -1,0 +1,7 @@
+set(CMAKE_SYSTEM_NAME Generic)
+set(CMAKE_SYSTEM_PROCESSOR arm)
+set(CMAKE_C_COMPILER /opt/devkitpro/devkitARM/bin/arm-none-eabi-gcc)
+set(CMAKE_AR /opt/devkitpro/devkitARM/bin/arm-none-eabi-ar)
+set(CMAKE_RANLIB /opt/devkitpro/devkitARM/bin/arm-none-eabi-ranlib)
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+set(CMAKE_C_FLAGS_INIT "-march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft -mword-relocations")

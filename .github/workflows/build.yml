@@ -1,0 +1,29 @@
+name: Build PokeDaisy companion
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build PokeDaisy only
+        run: make -C 3ds 3ds
+      - name: Verify CIA
+        run: python3 gpsp3ds/companion/test/verify_cia.py gpsp3ds/out
+      - name: Include licensing notices
+        run: cp LICENSE COPYING NOTICE THIRD_PARTY_NOTICES.md gpsp3ds/out/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gpsp-pokemon-pokedaisy
+          path: |
+            gpsp3ds/out/gpsp-pokemon-pokedaisy.cia
+            gpsp3ds/out/gpsp-pokemon-pokedaisy.3dsx
+            gpsp3ds/out/LICENSE
+            gpsp3ds/out/COPYING
+            gpsp3ds/out/NOTICE
+            gpsp3ds/out/THIRD_PARTY_NOTICES.md
