@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/banner.svg" alt="gpSP Pokémon — Unbound Companion: your adventure above, your team below" width="100%">
+  <img src="docs/assets/banner.svg" alt="Unbound Dual: your adventure above, your team below" width="100%">
 </p>
 
 <p align="center">
@@ -55,8 +55,8 @@ The app uses **one HOME Menu CIA**. Choose your ROM once; later launches open it
 
 You need a homebrew-enabled Nintendo 3DS and your own **Pokémon Unbound 2.1.1.1 English** ROM.
 
-1. Install `gpsp-pokemon-pokedaisy.cia` using FBI. For Homebrew Launcher, copy `gpsp-pokemon-pokedaisy.3dsx` to your SD card instead.
-2. Open **Pokémon Unbound** and select your ROM on the first launch.
+1. Install `unbound-dual.cia` using FBI. For Homebrew Launcher, copy `unbound-dual.3dsx` to your SD card instead.
+2. Open **Unbound Dual** and select your ROM on the first launch.
 3. Let the initial data preparation finish. The first preparation takes longer; later starts can reuse cached data.
 4. Continue your game using **Continue** in Unbound. Automatic ROM startup does not automatically restore a save state.
 
@@ -70,7 +70,7 @@ To choose a different ROM, open **MENU → System → Unbound ROM**. A missing o
 | Supported game | Pokémon Unbound 2.1.1.1, English |
 | ROM SHA-1 | `b4776b82a4c7915d0fadeaa27e013523f99dfd94` |
 | Application Title ID | `000400000BAC8200` |
-| Companion CIA version | `0.0.4` |
+| Companion CIA version | `0.0.5` |
 | Base emulator | gpSP 3D v0.1.7 |
 
 ROMs, Nintendo's BIOS and saves are not included. The open source BIOS replacement inherited from gpSP is supplied with its source under `bios/`.
@@ -108,8 +108,8 @@ Outputs:
 
 ```text
 gpsp3ds/out/
-├── gpsp-pokemon-pokedaisy.cia
-└── gpsp-pokemon-pokedaisy.3dsx
+├── unbound-dual.cia
+└── unbound-dual.3dsx
 ```
 
 The build produces only the PokeDaisy companion. It uses devkitARM, libctru and citro3d from `devkitpro/devkitarm:latest`, plus makerom **0.18.4** and bannertool **1.2.2**. The Docker toolchain is not fully pinned. Build commands are in [`gpsp3ds/build-companion.sh`](gpsp3ds/build-companion.sh).

@@ -1,4 +1,4 @@
-name: Build PokeDaisy companion
+name: Build Unbound Dual
 on:
   workflow_dispatch:
   push:
@@ -32,10 +32,10 @@ jobs:
           done
       - uses: actions/upload-artifact@v4
         with:
-          name: gpsp-pokemon-pokedaisy
+          name: unbound-dual
           path: |
-            gpsp3ds/out/gpsp-pokemon-pokedaisy.cia
-            gpsp3ds/out/gpsp-pokemon-pokedaisy.3dsx
+            gpsp3ds/out/unbound-dual.cia
+            gpsp3ds/out/unbound-dual.3dsx
             gpsp3ds/out/LICENSE
             gpsp3ds/out/COPYING
             gpsp3ds/out/NOTICE

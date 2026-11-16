@@ -1,5 +1,5 @@
-#ifndef GPSP_POKEMON_COMPANION_H
-#define GPSP_POKEMON_COMPANION_H
+#ifndef UNBOUND_DUAL_COMPANION_H
+#define UNBOUND_DUAL_COMPANION_H
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>

@@ -5,7 +5,7 @@ What's been reported, what's done, and what's next. Reports come from
 
 **Status key:** ✅ done · 🧪 done, needs testing on real hardware · 🔧 next up · 📋 planned · 💤 later / big project
 
-## Local gpSP Pokémon work
+## Local Unbound Dual work
 
 | Requested by | Change | Status |
 |---|---|---|
@@ -167,7 +167,7 @@ Sonic Advance 1 and 2, Ace Combat Advance, Asterix, Downhill Jam, Pokémon Emera
 
 - ✅ slickmaxim requested no further native companion builds. Build and package scripts now include PokeDaisy and the upstream baseline only; historical native files are kept.
 
-### Unbound Companion v3 (slickmaxim)
+### Unbound Dual v3 (slickmaxim)
 
 | Change | Status |
 |---|---|
@@ -176,7 +176,7 @@ Sonic Advance 1 and 2, Ace Combat Advance, Asterix, Downhill Jam, Pokémon Emera
 | Read-only PokeDaisy trainer card, five-tab footer, bounded lazy workspace | 🧪 host fixtures and CIA metadata verified; Old 3DS visual/save acceptance pending |
 | Separate Companion CIA + Pokémon Unbound shortcut, configurable ROM path and one-time settings import | 🧪 Cross-build and CIA metadata/hash checks; install/HOME testing pending |
 
-### Unbound Companion v4 (slickmaxim)
+### Unbound Dual v4 (slickmaxim)
 
 - 🧪 One CIA named Pokémon Unbound, automatic configured-ROM startup without a separate forwarder. Same title ID as the v3 application, CIA micro version 4. Missing ROM opens the picker; START cancels and exits. ROM selection remains available in System/config. Build/package only the single CIA; keep v3 historical artifacts. Console installation/autostart test pending.
 
@@ -189,3 +189,5 @@ Sonic Advance 1 and 2, Ace Combat Advance, Asterix, Downhill Jam, Pokémon Emera
 - ✅ slickmaxim: embed supplied screen captures in the SVG banner; retain GitHub Actions build logs on failures. Root cause of reported CI failure awaits the failed run log.
 
 - 🧪 slickmaxim: fix Actions missing stb_image header after Icon Maker removal; preserve header and license in gpsp3ds/third_party; trust the mounted checkout inside the build container.
+
+- 🧪 slickmaxim: rename companion to Unbound Dual in docs, banners, HOME Menu metadata, artifact names and releases; CIA 0.0.5 retains Title ID and existing save/config paths.

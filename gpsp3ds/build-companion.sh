@@ -17,15 +17,16 @@ for style in pokedaisy; do
     cmake -S companion -B companion/build-$style -DCMAKE_TOOLCHAIN_FILE=/repo/gpsp3ds/companion/toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DCOMPANION_NATIVE=$native
     cmake --build companion/build-$style -j4
     cp companion/build-$style/libcompanion.a lib/lib/libcompanion-$style.a
-    rm -f gpsp-pokemon-$style.smdh
-    make -f gpsp3d.mk CORE=.. BUILD=build-$style TARGET=gpsp-pokemon-$style COMPANION_LIB=companion-$style APP_TITLE="gpSP Pokemon - $style v4" -j4
-    cp gpsp-pokemon-$style.3dsx out/
+    rm -f unbound-dual.smdh
+    make -f gpsp3d.mk CORE=.. BUILD=build-$style TARGET=unbound-dual COMPANION_LIB=companion-$style APP_TITLE="Unbound Dual" APP_DESCRIPTION="Unbound companion for Nintendo 3DS" -j4
+    cp unbound-dual.3dsx out/
 done
 
 # CIA tools are pinned official releases, cached locally outside source packages.
 python3 tools/companion-cia-tools.py
 export PATH="$PWD/.cia-tools:$PATH"
 mkdir -p build-cia-companion
-bannertool makesmdh -s "Pokémon Unbound" -l "Pokémon Unbound - Companion v4" -p "gpSP / PokeDaisy" -f visible,allow3d,recordusage,extendedbanner -i res/icon.png -o build-cia-companion/app.icn
-makerom -f cia -o out/gpsp-pokemon-pokedaisy.cia -rsf res/app.rsf -exefslogo -elf gpsp-pokemon-pokedaisy.elf -icon build-cia-companion/app.icn -banner res/banner3d.bnr -DAPP_TITLE="UnboundComp" -DAPP_PRODUCT_CODE="CTR-UBCP" -DAPP_UNIQUE_ID=0xBAC82 -DAPP_SYSTEM_MODE=64MB -DAPP_SYSTEM_MODE_EXT=124MB -DAPP_ENCRYPTED=false -major 0 -minor 0 -micro 4
+bannertool makesmdh -s "Unbound Dual" -l "Unbound Dual v0.1.1" -p "gpSP / PokeDaisy" -f visible,allow3d,recordusage,extendedbanner -i res/icon.png -o build-cia-companion/app.icn
+bannertool makebanner -i res/unbound-dual-banner.png -a res/silent.wav -o build-cia-companion/banner.bnr
+makerom -f cia -o out/unbound-dual.cia -rsf res/app.rsf -exefslogo -elf unbound-dual.elf -icon build-cia-companion/app.icn -banner build-cia-companion/banner.bnr -DAPP_TITLE="UnboundD" -DAPP_PRODUCT_CODE="CTR-UBCP" -DAPP_UNIQUE_ID=0xBAC82 -DAPP_SYSTEM_MODE=64MB -DAPP_SYSTEM_MODE_EXT=124MB -DAPP_ENCRYPTED=false -major 0 -minor 0 -micro 5
 cp ../LICENSE ../COPYING ../NOTICE ../THIRD_PARTY_NOTICES.md out/

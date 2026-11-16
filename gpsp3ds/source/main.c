@@ -112,6 +112,12 @@ int      video_thread_complete_deferred(void);
 extern int gpsp_frontend_skip;
 void     video_thread_counters(unsigned *copies, unsigned *syncs);
 
+#ifdef CP_ENABLED
+#define FRONTEND_NAME "Unbound Dual"
+#else
+#define FRONTEND_NAME "gpSP 3D"
+#endif
+
 #define APP_DIR      "sdmc:/3ds/gpsp3d"
 #ifdef CP_ENABLED
 #define CONFIG_PATH APP_DIR "/companion-gpsp3d.cfg"
@@ -2085,7 +2091,7 @@ static void hud_show(void)
    {
       /* the simple screen */
       ui_vgradient(0, 0, UI_W, UI_H, UI_RGB(0x1C, 0x1F, 0x2E), UI_RGB(0x0E, 0x11, 0x17));
-      ui_text_center(&ui_font_small, UI_W / 2, 14, "gpSP 3D", UI_RGB(0x4A, 0x52, 0x63));
+      ui_text_center(&ui_font_small, UI_W / 2, 14, FRONTEND_NAME, UI_RGB(0x4A, 0x52, 0x63));
       if (ui_text_w(&ui_font_bold, rom_name) <= UI_W - 24)
          ui_text_center(&ui_font_bold, UI_W / 2, 96, rom_name, UI_RGB(0xE6, 0xE9, 0xF0));
       else
@@ -2930,7 +2936,7 @@ static void menu_build(int tab)
             mrows[mrow_n - 1].r.disabled = 1;
          }
          mrow_add(M_LIST, ROW_ACTION, "Back to game list", "Close this game (its save is kept)\nand choose another.");
-         mrow_add(M_QUIT, ROW_ACTION, "Quit gpSP 3D", "Close the game and the app.");
+         mrow_add(M_QUIT, ROW_ACTION, "Quit " FRONTEND_NAME, "Close the game and the app.");
          mrows[mrow_n - 1].r.danger = 1;
          {
             static char sv[24];
@@ -3128,7 +3134,13 @@ static void menu_build(int tab)
          if (update_state() == UPD_NEWER)
             snprintf(about, sizeof(about), "%s  (%s is out)", GPSP3D_VERSION, update_latest());
          else
-            snprintf(about, sizeof(about), "gpSP 3D " GPSP3D_VERSION);
+            snprintf(about, sizeof(about), FRONTEND_NAME
+#ifdef CP_ENABLED
+                     " v0.1.1"
+#else
+                     " " GPSP3D_VERSION
+#endif
+                     );
          mrow_add(M_ABOUT, ROW_INFO, "Version", "gpSP (libretro, GPL-2), mGBA 3DS GPU\ncode (MPL-2.0), Inter font (OFL).");
          mrows[mrow_n - 1].r.value = about;
          mrow_add(M_CREDITS, ROW_INFO, "Credits", "gpSP: Exophase, notaz, davidgfnet and others.\nThanks: michvllni, hspman69 and all testers.");

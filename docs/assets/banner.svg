@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1100" height="380" viewBox="0 0 1100 380" role="img" aria-labelledby="title desc">
-  <title id="title">gpSP Pokémon — Unbound Companion</title>
+  <title id="title">Unbound Dual</title>
   <desc id="desc">A game on the upper screen and party information on the lower screen of a stylized handheld.</desc>
   <defs>
     <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#151626"/><stop offset="1" stop-color="#292043"/></linearGradient>
@@ -9,8 +9,8 @@
   <circle cx="1050" cy="30" r="200" fill="#a98be5" opacity=".06"/>
   <g font-family="system-ui, sans-serif">
     <text x="62" y="78" fill="#8be5d0" font-size="13" font-weight="700" letter-spacing="3">NINTENDO 3DS · COMMUNITY PROJECT</text>
-    <text x="58" y="147" fill="#f6f3ff" font-size="49" font-weight="750">gpSP Pokémon</text>
-    <text x="61" y="191" fill="#c3a6ff" font-size="28" font-weight="600">Unbound Companion</text>
+    <text x="58" y="147" fill="#f6f3ff" font-size="49" font-weight="750">Unbound Dual</text>
+    <text x="61" y="191" fill="#c3a6ff" font-size="28" font-weight="600">Two screens. One adventure.</text>
     <text x="62" y="242" fill="#c5bed5" font-size="19">Your adventure above. Your team below.</text>
     <rect x="62" y="278" width="128" height="34" rx="17" fill="#ffffff" opacity=".07"/>
     <text x="126" y="300" text-anchor="middle" fill="#e8e1f5" font-size="13">gpSP 3D core</text>

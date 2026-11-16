@@ -1,4 +1,4 @@
-# Working on gpSP Pokémon
+# Working on Unbound Dual
 
 This is a GPLv3 companion fork of gpSP 3D with PokeDaisy portable C components.
 Read README.md, NOTICE and THIRD_PARTY_NOTICES.md before changing attribution.
