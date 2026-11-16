@@ -25,8 +25,11 @@ jobs:
           if-no-files-found: warn
       - name: Verify CIA
         run: python3 gpsp3ds/companion/test/verify_cia.py gpsp3ds/out
-      - name: Include licensing notices
-        run: cp LICENSE COPYING NOTICE THIRD_PARTY_NOTICES.md gpsp3ds/out/
+      - name: Check licensing notices
+        run: |
+          for notice in LICENSE COPYING NOTICE THIRD_PARTY_NOTICES.md; do
+            test -s "gpsp3ds/out/$notice"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: gpsp-pokemon-pokedaisy

@@ -28,3 +28,4 @@ export PATH="$PWD/.cia-tools:$PATH"
 mkdir -p build-cia-companion
 bannertool makesmdh -s "Pokémon Unbound" -l "Pokémon Unbound - Companion v4" -p "gpSP / PokeDaisy" -f visible,allow3d,recordusage,extendedbanner -i res/icon.png -o build-cia-companion/app.icn
 makerom -f cia -o out/gpsp-pokemon-pokedaisy.cia -rsf res/app.rsf -exefslogo -elf gpsp-pokemon-pokedaisy.elf -icon build-cia-companion/app.icn -banner res/banner3d.bnr -DAPP_TITLE="UnboundComp" -DAPP_PRODUCT_CODE="CTR-UBCP" -DAPP_UNIQUE_ID=0xBAC82 -DAPP_SYSTEM_MODE=64MB -DAPP_SYSTEM_MODE_EXT=124MB -DAPP_ENCRYPTED=false -major 0 -minor 0 -micro 4
+cp ../LICENSE ../COPYING ../NOTICE ../THIRD_PARTY_NOTICES.md out/
