@@ -35,3 +35,7 @@ the gpSP frontend; autostart/config, caching, theme/filter controls and trainer
 card; retained original emulator settings; removed experimental badge overlay;
 added PokeDaisy credit in the emulator menu. Historical binaries and development
 artifacts are excluded.
+
+- **stb_image v2.30:** Sean Barrett and contributors, dual MIT/public-domain.
+  The unmodified header and full license are in `gpsp3ds/third_party/stb_image.h`.
+  Used for PNG overlays. Source: https://github.com/nothings/stb

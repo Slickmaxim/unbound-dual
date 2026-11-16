@@ -3,6 +3,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 export DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM CTRULIB=/opt/devkitpro/libctru
 export PATH="$DEVKITPRO/tools/bin:$DEVKITARM/bin:$PATH"
+# The mounted checkout belongs to the host user; this container is ephemeral.
+git config --global --add safe.directory "$PWD"
 mkdir -p gpsp3ds/gen gpsp3ds/lib/lib gpsp3ds/out
 make platform=ctr PROFILE=1 -j4
 cp gpsp_libretro_ctr.a gpsp3ds/lib/lib/libgpsp.a
