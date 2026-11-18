@@ -6,7 +6,6 @@ static int frames(unsigned cost){
  struct cp_bag_refresh r={0};
  for(uint64_t t=0;t<1000000;t+=16667)
   if(cp_bag_refresh_due(&r,true,t))cp_bag_refresh_presented(&r,t,cost);
- assert(cp_bag_refresh_fps(&r,966686)>29&&cp_bag_refresh_fps(&r,966686)<31);
  return r.frames;
 }
 int main(void){
@@ -22,5 +21,5 @@ int main(void){
  assert(cp_bag_refresh_due(&r,true,1000000)); // long pause: no catch-up burst
  cp_bag_refresh_presented(&r,1000000,9000);
  assert(!cp_bag_refresh_due(&r,true,1000000));assert(r.next_us>1000000);
- puts("Bag fixed timer: 30 Hz without touch/dirty/spare time, independent of cost feedback, reopen/stall PASS");
+ puts("Bag fixed timer: 30 Hz for pending redraws, independent of cost feedback, reopen/stall PASS");
 }

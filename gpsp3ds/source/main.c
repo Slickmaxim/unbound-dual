@@ -3180,7 +3180,7 @@ static void menu_build(int tab)
          else
             snprintf(about, sizeof(about), FRONTEND_NAME
 #ifdef CP_ENABLED
-                     " v0.2.0 test 6"
+                     " v0.2.0 test 7"
 #else
                      " " GPSP3D_VERSION
 #endif
@@ -4048,15 +4048,20 @@ static void run_game(void)
          uint64_t begin_us=begin/(SYSCLOCK_ARM11/1000000ULL);
          bool bag_open=companion_bag_open();
          bool bag_due=cp_bag_refresh_due(&cp_bag,bag_open,begin_us);
-         // Bag owns a fixed 30 Hz timer, including clean/stationary frames.
-         // Other tabs retain the original idle/dirty refresh behavior.
+         // Bag input redrawing is capped at 30 Hz, with RAM reads on the
+         // existing slower timer. Clean frames perform no display work.
          bool spare = begin + cp_work_ticks < t0 + (u64)(TICKS_PER_MS * 16.0);
          bool overdue = begin - cp_last_update >= SYSCLOCK_ARM11;
-         if (bag_open ? bag_due : (cp_redraw || spare || overdue)) {
+         if (cp_redraw || (bag_open ? bag_due : spare || overdue)) {
             bool changed = companion_update(begin_us);
-            if (bag_due || cp_redraw || changed) {
-               companion_draw(ui_canvas);
-               ui_present();
+            if (cp_redraw || changed) {
+               int rect[4];
+               if (!cp_redraw && companion_draw_bag_scroll(ui_canvas,rect))
+                  ui_present_region(rect);
+               else {
+                  companion_draw(ui_canvas);
+                  ui_present();
+               }
                cp_work_ticks = svcGetSystemTick() - begin;
                unsigned us = (unsigned)(cp_work_ticks / (SYSCLOCK_ARM11 / 1000000ULL));
                if (bag_open) cp_bag_refresh_presented(&cp_bag,begin_us,us);
@@ -4186,8 +4191,8 @@ static void run_game(void)
                   companion_interval_ms(), (unsigned long)(companion_memory() / 1024));
             prof_log_line(cp_line);
             if (cp_bag.active&&cp_bag.frames) {
-               snprintf(cp_line,sizeof(cp_line),"Bag: fixed 30 Hz, rendered %.1f FPS, work avg %.2f ms",
-                     cp_bag_refresh_fps(&cp_bag,now/(SYSCLOCK_ARM11/1000000ULL)),
+               snprintf(cp_line,sizeof(cp_line),"Bag: up to 30 Hz, redraws %u, work avg %.2f ms",
+                     cp_bag.frames,
                      cp_bag.work_us/(1000.0*cp_bag.frames));
                prof_log_line(cp_line);
             }

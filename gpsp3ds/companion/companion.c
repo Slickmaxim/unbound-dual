@@ -19,6 +19,7 @@ void cp_ui_init(struct pd_ui*,struct pd_settings*);
 void cp_ui_draw(struct pd_ui*,struct pd_canvas*,const struct pd_game*,const struct pd_snapshot*);
 bool cp_ui_touch(struct pd_ui*,int,int,int);
 void cp_map_reset(void);
+bool cp_bag_draw_list(struct pd_ui*,struct pd_canvas*,int rect[4]);
 void cp_art_reset(void);
 void cp_party_reset(void);
 void cp_card_reset(void);
@@ -36,7 +37,7 @@ static struct state {
     void *ctx;
     uint64_t next;
     unsigned interval;
-    bool dirty;
+    bool dirty, bag_list_only;
 #ifdef COMPANION_NATIVE
     int pocket,scroll,detail,drag_pixels;
 #endif
@@ -90,15 +91,15 @@ bool companion_load(const uint8_t header[192],size_t size,cp_read_fn read,
         }
     }else cache_status="hit";
     if(cp_allocation_failed()){companion_close();error="Not enough memory for Companion";return false;}
-    supported=true;error=NULL;S->dirty=true;return true;
+    supported=true;error=NULL;S->dirty=true;S->bag_list_only=false;return true;
 }
 void companion_options(bool dark,bool smooth){
  cp_dark_mode=dark;cp_bottom_smooth=smooth;
- if(S){S->settings.darkMode=dark;pd_look_apply(&S->game,&S->settings);S->dirty=true;}
+ if(S){S->settings.darkMode=dark;pd_look_apply(&S->game,&S->settings);S->dirty=true;S->bag_list_only=false;}
 }
 bool companion_supported(void){return supported;}
 const char*companion_error(void){return error;}
-void companion_invalidate(void){if(S)S->dirty=true;}
+void companion_invalidate(void){if(S){S->dirty=true;S->bag_list_only=false;}}
 bool companion_bag_open(void){return supported&&S&&S->ui.tab==PD_TAB_BAG;}
 unsigned companion_interval_ms(void){return S?S->interval:1000;}
 size_t companion_memory(void){return cp_memory_used();}
@@ -122,7 +123,7 @@ bool companion_update(uint64_t now){
     if(now>=S->next){
         struct pd_snapshot snap;
         pd_snapshot_read(&snap,&S->game,S->read,S->ctx);
-        if(visible_changed(&snap,&S->snap,S->ui.tab))S->dirty=true;
+        if(visible_changed(&snap,&S->snap,S->ui.tab)){S->dirty=true;S->bag_list_only=false;}
         S->snap=snap;
         S->next=now+(uint64_t)S->interval*1000;
     }
@@ -222,7 +223,26 @@ void companion_draw(uint16_t*out){
     struct pd_canvas c;pd_canvas_init(&c,320,240,S->pixels);cp_ui_draw(&S->ui,&c,&S->game,&S->snap);
     for(int i=0;i<320*240;++i){uint32_t v=S->pixels[i];out[i]=((v>>19)<<11)|(((v>>10)&63)<<5)|((v>>3)&31);}
 #endif
-    S->dirty=false;
+    S->dirty=S->bag_list_only=false;
+}
+bool companion_draw_bag_scroll(uint16_t* out,int rect[4]){
+#ifndef COMPANION_NATIVE
+    if(!companion_bag_open() || !S->bag_list_only) return false;
+    struct pd_canvas c;
+    pd_canvas_init(&c,320,208,S->pixels);
+    if(!cp_bag_draw_list(&S->ui,&c,rect)) return false;
+    for(int y=rect[1];y<rect[1]+rect[3];++y)
+        for(int x=rect[0];x<rect[0]+rect[2];++x){
+            int i=y*320+x;
+            uint32_t v=S->pixels[i];
+            out[i]=((v>>19)<<11)|(((v>>10)&63)<<5)|((v>>3)&31);
+        }
+    S->dirty=S->bag_list_only=false;
+    return true;
+#else
+    (void)out;(void)rect;
+    return false;
+#endif
 }
 bool companion_touch(int phase,int x,int y){
     if(!supported)return phase==2&&y>=212&&x>=240;
@@ -238,6 +258,7 @@ bool companion_touch(int phase,int x,int y){
     }
 #endif
     int previous_id=S->ui.pressedId, previous_y=S->ui.touchLastY;
+    int previous_scroll=S->ui.bagScroll;
     bool menu=cp_ui_touch(&S->ui,phase,x,y);
 #ifdef COMPANION_NATIVE
     if(phase==1 && S->ui.dragging && S->ui.tab==PD_TAB_BAG) {
@@ -248,6 +269,15 @@ bool companion_touch(int phase,int x,int y){
     }
     if(phase==2)S->drag_pixels=0;
 #endif
-    if(phase!=1 || previous_y!=y || previous_id!=S->ui.pressedId)S->dirty=true;
+    if(phase==1 && S->ui.tab==PD_TAB_BAG){
+        if(previous_scroll!=S->ui.bagScroll || previous_id!=S->ui.pressedId){
+            bool list_press=previous_id<0 || previous_id==HIT_BAG_LIST ||
+                previous_id==HIT_SCROLL_BAR || (previous_id>=HIT_BAG_ROW && previous_id<HIT_BAG_ROW_END);
+            S->bag_list_only=list_press && (!S->dirty||S->bag_list_only);
+            S->dirty=true;
+        }
+    }else if(phase!=1 || previous_y!=y || previous_id!=S->ui.pressedId){
+        companion_invalidate();
+    }
     return menu;
 }

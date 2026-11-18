@@ -6,13 +6,13 @@
 #define CP_BAG_PERIOD_US 33333u
 struct cp_bag_refresh {
     bool active;
-    uint64_t next_us,started_us,work_us;
+    uint64_t next_us,work_us;
     unsigned frames;
 };
 // Called even when the view is clean and there is no touch input.
 static inline bool cp_bag_refresh_due(struct cp_bag_refresh* r,bool open,uint64_t now_us) {
     if (!open) { r->active=false;return false; }
-    if (!r->active) *r=(struct cp_bag_refresh){.active=true,.next_us=now_us,.started_us=now_us};
+    if (!r->active) *r=(struct cp_bag_refresh){.active=true,.next_us=now_us};
     return now_us>=r->next_us;
 }
 static inline void cp_bag_refresh_presented(struct cp_bag_refresh* r,uint64_t now_us,unsigned work_us) {
@@ -21,9 +21,5 @@ static inline void cp_bag_refresh_presented(struct cp_bag_refresh* r,uint64_t no
     r->next_us=now_us>=r->next_us&&now_us-r->next_us<CP_BAG_PERIOD_US
         ? r->next_us+CP_BAG_PERIOD_US : now_us+CP_BAG_PERIOD_US;
     r->work_us+=work_us;r->frames++;
-}
-static inline double cp_bag_refresh_fps(const struct cp_bag_refresh* r,uint64_t now_us) {
-    return r->frames>1&&now_us>r->started_us
-        ? (r->frames-1)*1000000.0/(now_us-r->started_us) : 0;
 }
 #endif

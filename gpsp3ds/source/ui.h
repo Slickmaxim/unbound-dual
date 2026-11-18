@@ -46,5 +46,6 @@ int  ui_text_vc(const ui_font *f, int x, int y, int h, const char *s, uint16_t c
 
 /* copy the canvas to the bottom screen and show it (3DS only) */
 void ui_present(void);
+void ui_present_region(const int rect[4]);
 
 #endif

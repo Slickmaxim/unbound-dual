@@ -19,7 +19,7 @@ No se incluye ningún ROM ni archivo de guardado.
 ## Idioma e instalación
 
 Instala el CIA de prueba con FBI o abre el 3DSX mediante Homebrew Launcher.
-La versión interna del CIA es 0.0.11 y conserva el Title ID anterior.
+La versión interna del CIA es 0.0.12 y conserva el Title ID anterior.
 Haz una copia de seguridad de tu partida antes de probarlo.
 
 Abre **MENU → Display → Interface language → Español**. Para volver a inglés,
@@ -55,8 +55,7 @@ la velocidad real depende del juego y de la consola. Funcionan Mantener y Altern
 
 ## Refresco de la mochila
 
-Mientras la pestaña Mochila está abierta se redibuja con un temporizador fijo
-de 30 Hz, incluso sin tocar la pantalla. El desplazamiento usa ese mismo ritmo.
-No espera tiempo libre ni reduce automáticamente el objetivo según el coste.
-Las demás pestañas conservan su comportamiento anterior. La frecuencia real
-y el efecto sobre el juego deben comprobarse en la consola.
+La lista y la barra de desplazamiento se actualizan hasta 30 veces por
+segundo al desplazarse. El fondo, los botones y la descripción se conservan
+entre esos cuadros. Cuando la mochila está quieta, se redibuja si cambian
+los datos visibles. El rendimiento real debe comprobarse en la consola.

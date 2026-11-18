@@ -53,9 +53,9 @@ bool cp_ui_touch(struct pd_ui*ui,int phase,int x,int y){
         int *scroll_target=ui->overlay==PD_OVERLAY_PLACES?&ui->placesScroll:ui->tab==PD_TAB_BAG?&ui->bagScroll:NULL;
         if(ui->barDragging){int span=ui->barH-ui->barThumb;
             if(scroll_target&&span>0)*scroll_target=ui_clamp_scroll((y-ui->barY-ui->barThumb/2)*ui->barMax/span,ui->barMax,0);
-            ui->dragging=true;return false;}
+            ui->touchLastY=y;ui->dragging=true;return false;}
         if(ui->touchScroll&&(y-ui->touchY0>5||ui->touchY0-y>5))ui->dragging=true;
-        if(ui->dragging&&scroll_target){*scroll_target-=y-ui->touchLastY;if(*scroll_target<0)*scroll_target=0;}
+        if(ui->dragging&&scroll_target){*scroll_target-=y-ui->touchLastY;if(ui->tab==PD_TAB_BAG)*scroll_target=ui_clamp_scroll(*scroll_target,ui->barMax,0);else if(*scroll_target<0)*scroll_target=0;}
         if(id!=ui->pressedId)ui->pressedId=-1;
         ui->touchLastY=y;
     }return false;

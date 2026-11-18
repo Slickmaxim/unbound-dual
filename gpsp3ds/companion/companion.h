@@ -13,9 +13,11 @@ void companion_cache_directory(const char *directory);
 const char *companion_cache_status(void);
 bool companion_supported(void);
 const char *companion_error(void);
-// RAM polling only; the frontend presents an open Bag at a fixed 30 Hz.
+// RAM polling is independent of the Bag scroll redraw timer.
 bool companion_update(uint64_t now_us);
 void companion_draw(uint16_t *rgb565);
+// Update just the list of a previously painted Bag in the same canvas.
+bool companion_draw_bag_scroll(uint16_t *rgb565,int rect[4]);
 // Touch phases: 0 down, 1 held, 2 release. Return true for native MENU.
 bool companion_touch(int phase,int x,int y);
 void companion_invalidate(void);
