@@ -69,6 +69,11 @@ and tap **Use** while standing in the field. The game applies the effect and
 consumes one item in the same operation. The option depends on the item
 handler in your ROM. For a TM or HM, **Use** opens the game’s teaching screen.
 
+**GPU startup recovery.** If GPU Display causes a black screen, hold **L**
+while starting Unbound Dual to run with CPU display. A normal exit saves
+GPU Display as Off. You can also set `gpu=0` in the companion config
+on the SD card.
+
 ## Installation
 
 You need a homebrew-enabled Nintendo 3DS and your own **Pokémon Unbound 2.1.1.1 English or one of the supported Spanish** ROM.
@@ -88,7 +93,7 @@ To choose a different ROM, open **MENU → System → Unbound ROM**. A missing o
 | Supported game | Pokémon Unbound 2.1.1.1, English |
 | English ROM SHA-1 | `b4776b82a4c7915d0fadeaa27e013523f99dfd94` |
 | Application Title ID | `000400000BAC8200` |
-| Companion CIA version | `0.1.3` (test 14) |
+| Companion CIA version | `0.1.4` (test 15) |
 | Base emulator | gpSP 3D v0.1.7 |
 
 ROMs, Nintendo's BIOS and saves are not included. The open source BIOS replacement inherited from gpSP is supplied with its source under `bios/`.

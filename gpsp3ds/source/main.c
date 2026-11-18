@@ -451,9 +451,6 @@ static void config_load(void)
 {
    char line[600];
    FILE *f;
-#ifdef CP_ENABLED
-   bool gpu_default_applied = false;
-#endif
    memcpy(keymap_global, keymap_default, NKEYS);
    memcpy(keymap, keymap_default, NKEYS);
    f = fopen(CONFIG_PATH, "r");
@@ -526,7 +523,6 @@ static void config_load(void)
       else if (!strcmp(line, "slot"))
          opt_slot = atoi(eq) >= 0 && atoi(eq) <= 9 ? atoi(eq) : 0;
 #ifdef CP_ENABLED
-      else if (!strcmp(line, "gpu_default_applied")) gpu_default_applied = !strcmp(eq, "1");
       else if (!strcmp(line, "companion_dark")) opt_cp_dark=atoi(eq)!=0;
       else if (!strcmp(line, "companion_filter")) opt_cp_smooth=atoi(eq)!=0;
       else if (!strcmp(line, "interface_language")) ud_language_set(!strcmp(eq,"es"));
@@ -558,12 +554,6 @@ static void config_load(void)
       }
    }
    fclose(f);
-#ifdef CP_ENABLED
-   // Apply the new default once to older companion and imported gpSP configs.
-   // Future menu choices and crash recovery are written with the marker.
-   if (!gpu_default_applied)
-      opt_gpu = 1;
-#endif
 }
 
 static void config_save(void)
@@ -581,7 +571,6 @@ static void config_save(void)
          opt_slot, opt_smooth, opt_audio_stretch, opt_lowprio, opt_sat, opt_bright, opt_gapfill, opt_crt,
          opt_ff_toggle, opt_ff_speed, opt_overlay, opt_update, opt_rtc, opt_rtc_days, opt_rtc_hours, opt_intro, opt_bottom);
 #ifdef CP_ENABLED
-   fputs("gpu_default_applied=1\n", f);
    fprintf(f,"interface_language=%s\n",ud_language_get()?"es":"en");
    fprintf(f,"companion_dark=%d\ncompanion_filter=%d\ncompanion_rom=%s\n",opt_cp_dark,opt_cp_smooth,opt_cp_rom);
 #endif
@@ -879,25 +868,33 @@ static int opt_smooth_fwd(void);
  * filtering. Every GBA pixel comes out the same size with only a hairline
  * of blending at its edges (plain nearest scaling to 1.5x makes some pixels
  * one screen pixel wide and others two). */
-/* Compact fast-forward badge, uploaded once; no per-frame allocation. */
+/* Keep initialization on the CPU. Waiting for a synchronous GSP transfer
+ * here can leave both screens black before frame submission even starts. */
 static C3D_Tex gpu_ff_tex[3];
 static bool gpu_ff_ok;
-static void gpu_ff_init(void) {
-   uint16_t* pixels=linearAlloc(32*16*sizeof(*pixels));
-   gpu_ff_ok=pixels!=NULL;
-   if (!pixels) return;
+static void gpu_ff_init(void)
+{
+   const unsigned width=32, height=16;
    for (int i=0;i<3;i++) {
-      if (!C3D_TexInit(&gpu_ff_tex[i],32,16,GPU_RGB565)) { gpu_ff_ok=false;break; }
-      C3D_TexSetFilter(&gpu_ff_tex[i],GPU_NEAREST,GPU_NEAREST);
-      C3D_TexSetWrap(&gpu_ff_tex[i],GPU_CLAMP_TO_EDGE,GPU_CLAMP_TO_EDGE);
-      for (unsigned y=0;y<16;y++) for (unsigned x=0;x<32;x++)
-         pixels[y*32+x]=ff_badge_pixel(i+1,x,y);
-      GSPGPU_FlushDataCache(pixels,32*16*sizeof(*pixels));
-      /* Match the existing game/overlay texture orientation and tiling. */
-      C3D_SyncDisplayTransfer((u32*)pixels,GX_BUFFER_DIM(32,16),
-            (u32*)gpu_ff_tex[i].data,GX_BUFFER_DIM(32,16),TEX_FLAGS);
+      C3D_Tex *tex=&gpu_ff_tex[i];
+      if (!C3D_TexInit(tex,width,height,GPU_RGB565))
+         return;
+      C3D_TexSetFilter(tex,GPU_NEAREST,GPU_NEAREST);
+      C3D_TexSetWrap(tex,GPU_CLAMP_TO_EDGE,GPU_CLAMP_TO_EDGE);
+      u16 *pixels=tex->data;
+      for (unsigned y=0;y<height;y++) {
+         // Match the vertical flip used by the GPU transfers of game textures.
+         unsigned ty=height-1-y;
+         for (unsigned x=0;x<width;x++) {
+            unsigned tile=(ty>>3)*(width>>3)+(x>>3);
+            unsigned within=(x&1) | ((ty&1)<<1) | ((x&2)<<1) |
+                 ((ty&2)<<2) | ((x&4)<<2) | ((ty&4)<<3);
+            pixels[tile*64+within]=ff_badge_pixel(i+1,x,y);
+         }
+      }
+      C3D_TexFlush(tex);
    }
-   linearFree(pixels);
+   gpu_ff_ok=true;
 }
 
 /* Screen effects: an 8x8 alpha pattern repeated once per GBA pixel and
@@ -3288,7 +3285,7 @@ static void menu_build(int tab)
          else
             snprintf(about, sizeof(about), FRONTEND_NAME
 #ifdef CP_ENABLED
-                     " v0.2.0 test 14"
+                     " v0.2.0 test 15"
 #else
                      " " GPSP3D_VERSION
 #endif
@@ -4443,6 +4440,10 @@ int main(int argc, char **argv)
    mkdir(APP_DIR, 0777);
    config_load();
 #ifdef CP_ENABLED
+   // A held L can recover an installation that freezes during GPU startup.
+   hidScanInput();
+   if (hidKeysHeld() & KEY_L)
+      opt_gpu = 0;
    companion_item_bind(&item_guest);
 #endif
    if (opt_update)
@@ -4485,6 +4486,10 @@ int main(int argc, char **argv)
    }
    if (opt_gpu)
    {
+#ifdef CP_ENABLED
+      scr_message(ud_tr("GPU display"), ud_tr("Starting..."), NULL);
+      ui_present();
+#endif
       gpu_guard_set("starting the GPU");
       gpu_ok = gpu_init();
       if (gpu_ok)
