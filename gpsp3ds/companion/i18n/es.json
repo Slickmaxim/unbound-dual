@@ -377,7 +377,6 @@
   "No Wi-Fi at startup, so it\ndidn't check. Checks again next start.": "Sin Wi-Fi al iniciar; no se comprobó.\nSe reintentará en el próximo inicio.",
   "Checks at startup (needs Wi-Fi).": "Comprueba al iniciar (con Wi-Fi).",
   "Couldn't reach GitHub (%s:\n%.50s). Off/On retries.": "No se pudo conectar a GitHub (%s:\n%.50s). Desactiva/activa para reintentar.",
-  "Version %s is out. Update it in\nGitHub Releases (CIA via FBI).": "Disponible: %s. Actualiza desde\nGitHub Releases (CIA con FBI).",
   "Companion: work %lu us, interval %u ms, memory %lu KiB": "Companion: %lu us, intervalo %u ms, memoria %lu KiB",
   "Choose your Unbound ROM. Its path is saved\nand can be changed in System or the config.": "Elige tu ROM Unbound. Puedes cambiarlo\nen Sistema o en la configuración.",
   "During: %s\n\n%s": "Durante: %s\n\n%s",
@@ -440,5 +439,11 @@
   "FIGHT": "LUCHA",
   "ELECTR": "ELÉCTRICO",
   "PSYCHC": "PSÍQUICO",
-  "Choose 2x, 3x or 4x. Actual speed depends\non the game and console.": "Elige 2x, 3x o 4x. La velocidad real depende\ndel juego y de la consola."
+  "Choose 2x, 3x or 4x. Actual speed depends\non the game and console.": "Elige 2x, 3x o 4x. La velocidad real depende\ndel juego y de la consola.",
+  "Version %s is available.": "Disponible: %s.",
+  "Install update": "Instalar actualización",
+  "Download and install the Unbound Dual release.": "Descarga e instala la versión de Unbound Dual.",
+  "Downloading from GitHub...": "Descargando de GitHub...",
+  "Update installed": "Actualización instalada",
+  "Reopen Unbound Dual to use the new version.": "Abre Unbound Dual otra vez para usar la nueva versión."
 }

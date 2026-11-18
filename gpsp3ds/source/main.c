@@ -168,6 +168,7 @@ static char save_dir[512];
 static char state_dir[512];
 static char old_save_dir[512];  /* where saves went before save_dir/save_ext were set */
 
+static char update_launch_path[513];
 static bool game_loaded;
 static bool quit_app;
 static bool frame_ready;
@@ -2295,7 +2296,7 @@ static void browse_draw(int sel, int top)
       static char notice[64];
       notice[0] = 0;
       if (opt_update && update_state() == UPD_NEWER)
-         snprintf(notice, sizeof(notice), UPDATE_APP " %s is out. See GitHub Releases.", update_latest());
+         snprintf(notice, sizeof(notice), UPDATE_APP " %s is out. Open System to update.", update_latest());
       scr_browser_notice = notice[0] ? notice : NULL;
    }
    scr_browser(cur_dir + 5, names, isdir, n_entries, sel, top);
@@ -2906,13 +2907,13 @@ enum {
    /* Keys */
    M_KPERGAME, M_K0, M_K1, M_K2, M_K3, M_K4, M_K5, M_K6, M_K7, M_K8, M_K9, M_KRESET,
    /* System */
-   M_CORE2, M_GPU, M_PRIO, M_C2TEST, M_RTC, M_RTCDAYS, M_RTCHOURS, M_INTRO, M_BOTTOM, M_UPDATE, M_SAVEINFO, M_ABOUT, M_CREDITS,
+   M_CORE2, M_GPU, M_PRIO, M_C2TEST, M_RTC, M_RTCDAYS, M_RTCHOURS, M_INTRO, M_BOTTOM, M_UPDATE, M_INSTALL_UPDATE, M_SAVEINFO, M_ABOUT, M_CREDITS,
    M_HDR
 };
 
 static const char *const menu_tabs[] = { "Game", "Display", "3D", "Speed", "Keys", "System" };
 #define MENU_NTABS 6
-#define MENU_MAXROWS 16
+#define MENU_MAXROWS 18
 
 typedef struct { int id; ui_row r; const char *help; char vbuf[24]; } mrow;
 static mrow mrows[MENU_MAXROWS];
@@ -3161,8 +3162,13 @@ static void menu_build(int tab)
                   snprintf(upd_help, sizeof(upd_help), ud_tr("Couldn't reach GitHub (%s:\n%.50s). Off/On retries."),
                            update_method(), update_error());
                if (opt_update && st == UPD_NEWER)
-                  snprintf(upd_help, sizeof(upd_help), ud_tr("Version %s is out. Update it in\nGitHub Releases (CIA via FBI)."), update_latest());
+                  snprintf(upd_help, sizeof(upd_help), ud_tr("Version %s is available."), update_latest());
                mrow_choice(M_UPDATE, "Check for updates", opt_update ? "On" : "Off", upd_help);
+#ifdef CP_ENABLED
+               if (opt_update && st == UPD_NEWER)
+                  mrow_add(M_INSTALL_UPDATE, ROW_ACTION, "Install update",
+                           "Download and install the Unbound Dual release.");
+#endif
             }
          }
          if (save_path[0])
@@ -3582,6 +3588,18 @@ static bool game_menu(void)
             switch (r->id)
             {
 #ifdef CP_ENABLED
+               case M_INSTALL_UPDATE:
+                  sram_flush(true);
+                  scr_message(ud_tr("Install update"), ud_tr("Downloading from GitHub..."), NULL);
+                  ui_present();
+                  if (update_install(update_launch_path)) {
+                     ui_wait_message(ud_tr("Update installed"), ud_tr("Reopen Unbound Dual to use the new version."));
+                     quit_app = true;
+                     goto resume;
+                  }
+                  snprintf(note, sizeof(note), "%s", update_error());
+                  note_ok = 0;
+                  break;
                case M_CP_ROM:
                {
                   char current_rom[sizeof(rom_path)];memcpy(current_rom,rom_path,sizeof(rom_path));
@@ -4282,6 +4300,11 @@ int main(int argc, char **argv)
 {
    aptHookCookie cookie;
    bool dynarec;
+   if (argc > 0 && argv && argv[0]) {
+      const char *prefix = argv[0][0] == '/' ? "sdmc:" : "";
+      if (strlen(prefix) + strlen(argv[0]) < sizeof(update_launch_path))
+         snprintf(update_launch_path,sizeof(update_launch_path),"%s%s",prefix,argv[0]);
+   }
 
    prof_defer_log = true;   /* no SD writes from the profiler while playing */
    gfxInit(GSP_RGB565_OES, GSP_RGB565_OES, false);
