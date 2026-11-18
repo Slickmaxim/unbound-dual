@@ -168,6 +168,15 @@ static char save_dir[512];
 static char state_dir[512];
 static char old_save_dir[512];  /* where saves went before save_dir/save_ext were set */
 
+#ifdef CP_ENABLED
+extern bool gpsp_guest_idle(void);
+extern bool gpsp_guest_begin(void);
+extern bool gpsp_guest_call(uint32_t,const uint32_t[4],uint32_t*,bool);
+extern void gpsp_guest_end(bool);
+static const struct companion_guest item_guest = {
+   gpsp_guest_idle, gpsp_guest_begin, gpsp_guest_call, gpsp_guest_end
+};
+#endif
 static char update_launch_path[513];
 static bool game_loaded;
 static bool quit_app;
@@ -2055,6 +2064,9 @@ static bool state_load(void)
    }
    n = fread(state_buf, 1, state_size, f);
    fclose(f);
+#ifdef CP_ENABLED
+   companion_item_cancel();
+#endif
    return n == state_size && retro_unserialize(state_buf, state_size);
 }
 
@@ -3710,6 +3722,9 @@ static bool game_menu(void)
                   }
                   if (r->id == M_RESET)
                   {
+#ifdef CP_ENABLED
+                     companion_item_cancel();
+#endif
                      retro_reset();
                      goto resume;
                   }
@@ -4079,6 +4094,9 @@ static void run_game(void)
       __atomic_store_n(&ff_indicator_speed,ff ? opt_ff_speed : 0,__ATOMIC_RELAXED);
 
       t0 = svcGetSystemTick();
+#ifdef CP_ENABLED
+      companion_item_tick();
+#endif
       frame_ready = false;
       /* not while core 2 may still be drawing a deferred frame */
       if (!(skip_heavy && skip_phase > 0))
@@ -4405,6 +4423,9 @@ int main(int argc, char **argv)
    mkdir("sdmc:/3ds", 0777);
    mkdir(APP_DIR, 0777);
    config_load();
+#ifdef CP_ENABLED
+   companion_item_bind(&item_guest);
+#endif
    if (opt_update)
       update_check_start(UPDATE_VERSION);
    if (!dir_exists(cur_dir))

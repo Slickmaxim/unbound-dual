@@ -3663,6 +3663,14 @@ void execute_arm(u32 cycles)
   execute_arm_internal(cycles, false);
 }
 
+bool gpsp_guest_idle(void)
+{
+  // Only call from the main context at the game's hardware wait, never
+  // while an IRQ or in-progress gameplay routine is using the stack.
+  return (reg[CPU_MODE] == MODE_SYSTEM || reg[CPU_MODE] == MODE_USER) &&
+    reg[CPU_HALT_STATE] == CPU_HALT;
+}
+
 bool gpsp_guest_begin(void)
 {
   if (guest_transaction || (reg[CPU_MODE] != MODE_SYSTEM && reg[CPU_MODE] != MODE_USER))

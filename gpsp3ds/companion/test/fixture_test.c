@@ -45,6 +45,46 @@ static void check_bag_partial_draw(void) {
  S->snap=saved;S->ui.bagSelected=-1;S->ui.bagScroll=0;
  puts("Bag: partial scroll matches full rendering with and without item details");
 }
+static bool item_fixture_rom(void*ctx,uint32_t a,void*out,size_t n){
+ (void)ctx;
+ uint32_t base=S->game.cfg->itemDescs->base;
+ if(n!=32||a!=base+13*44)return false;
+ unsigned char record[32]={0};
+ record[14]=13;record[28]=0xe1;record[29]=0x16;record[30]=0x0a;record[31]=0x08;
+ memcpy(out,record,sizeof(record));
+ return true;
+}
+static bool guest_ready(void){return true;}
+static bool guest_committed;
+static int guest_calls;
+static bool item_guest_call(uint32_t address,const uint32_t args[4],uint32_t*result,bool query){
+ const struct pd_config*cfg=S->game.cfg;
+ guest_calls++;
+ if(address==cfg->fieldLocked){assert(query);*result=0;}
+ else if(address==cfg->fieldCheckBag){assert(query&&args[0]==13&&args[1]==1);*result=1;}
+ else if(address==cfg->fieldRemoveBag){assert(!query&&args[0]==13&&args[1]==1);*result=1;}
+ else {assert(args[0]==cfg->playerParty&&args[1]==13);*result=0;}
+ return true;
+}
+static void guest_finish(bool commit){guest_committed=commit;}
+static void check_bag_item_touch(void){
+ const struct companion_guest fake={guest_ready,guest_ready,item_guest_call,guest_finish};
+ companion_item_bind(&fake);
+ S->game.romRead=item_fixture_rom;S->item_profile=true;
+ S->ui.bagSelected=0;companion_draw(output);
+ tap_id(HIT_BAG_USE);assert(S->ui.itemPicking);
+ companion_draw(output);tap_id(HIT_ITEM_CANCEL);
+ assert(!S->ui.itemPicking&&!S->item_request.frames);
+ companion_draw(output);tap_id(HIT_BAG_USE);companion_draw(output);
+ tap_id(HIT_ITEM_SLOT);
+ assert(S->item_request.frames&&guest_calls==0);
+ companion_item_tick();
+ assert(!S->item_request.frames&&guest_committed&&guest_calls==5);
+ companion_item_tick();assert(guest_calls==5);
+ companion_item_cancel();S->ui.bagSelected=-1;S->game.romRead=NULL;
+ companion_item_bind(NULL);
+ puts("Bag: touch, cancel, single queued application and commit passed");
+}
 int main(int argc,char**argv){assert(argc==3);const char*fixtures[]={"unbound","unbound_battle"};
  for(int f=0;f<2;++f){
   load_bytes(argv[1],fixtures[f],"ewram",ew,sizeof(ew));load_bytes(argv[1],fixtures[f],"iwram",iw,sizeof(iw));memcpy(saved_ew,ew,sizeof(ew));memcpy(saved_iw,iw,sizeof(iw));
@@ -73,6 +113,8 @@ int main(int argc,char**argv){assert(argc==3);const char*fixtures[]={"unbound","
   for(int i=0;i<S->ui.hitCount;++i){int id=S->ui.hits[i].id;assert(id!=HIT_BAG_USE&&id!=HIT_BAG_GIVE&&id!=HIT_SUMMARY_TAKE&&id!=HIT_SUMMARY_PC&&id!=HIT_MAP_FLY&&id!=HIT_MAP_TAKE_OFF);}
   tap_id(9001);companion_draw(output);if(!f)image(argv[2],"bag");assert(S->ui.tab==PD_TAB_BAG);assert(companion_bag_open());
   check_bag_partial_draw();
+  if(!f)check_bag_item_touch();
+  companion_draw(output);
 #ifdef COMPANION_NATIVE
   if(S->snap.bag[0].count){tap_id(9200);companion_draw(output);if(!f)image(argv[2],"item");tap_id(9104);companion_draw(output);}
 #endif

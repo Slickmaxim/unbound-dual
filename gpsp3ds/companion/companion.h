@@ -25,4 +25,13 @@ bool companion_bag_open(void);
 unsigned companion_interval_ms(void);
 void companion_feedback(unsigned elapsed_us);
 size_t companion_memory(void);
+struct companion_guest {
+    bool (*idle)(void);
+    bool (*begin)(void);
+    bool (*call)(uint32_t, const uint32_t[4], uint32_t*, bool);
+    void (*end)(bool);
+};
+void companion_item_bind(const struct companion_guest* guest);
+void companion_item_tick(void);
+void companion_item_cancel(void);
 #endif

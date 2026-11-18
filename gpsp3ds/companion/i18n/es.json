@@ -432,7 +432,7 @@
   "Keys": "Botones",
   "First preparation takes longer.": "La primera preparación tarda más.",
   "Give %s to which POKéMON?": "¿A qué POKéMON darle %s?",
-  "Use %s on which POKéMON?": "¿En qué POKéMON usar %s?",
+  "Use %s on which POKéMON?": "¿En qué Pokémon usar %s?",
   "Fight": "Lucha",
   "Electr": "Eléctrico",
   "Psychc": "Psíquico",
@@ -450,5 +450,12 @@
   "Unbound Dual update": "Actualización de Unbound Dual",
   "B  Later": "B  Más tarde",
   "A  Update": "A  Actualizar",
-  "Update failed": "Error de actualización"
+  "Update failed": "Error de actualización",
+  "Use items in the field.": "Usa objetos fuera de combate.",
+  "The party changed.": "El equipo ha cambiado.",
+  "Try again on the field.": "Inténtalo otra vez fuera de combate.",
+  "Item use failed.": "No se pudo usar el objeto.",
+  "No items left.": "No quedan objetos.",
+  "It would have no effect.": "No tendría efecto.",
+  "Item used.": "Objeto usado."
 }

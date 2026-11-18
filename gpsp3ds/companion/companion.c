@@ -12,6 +12,7 @@
 #include "vendor/pd_tables.h"
 #include "vendor/pd_unbound_es.h"
 #include "vendor/pd_party_art.h"
+#include "vendor/pd_romart.h"
 #include <string.h>
 #include <stdio.h>
 #include "../source/ui.h"
@@ -25,6 +26,8 @@ void cp_party_reset(void);
 void cp_card_reset(void);
 int cp_bottom_smooth;
 static bool cp_dark_mode;
+static const struct companion_guest* item_guest;
+void companion_item_bind(const struct companion_guest* guest){ item_guest=guest; }
 static char cache_directory[700];
 void companion_cache_directory(const char*d){snprintf(cache_directory,sizeof(cache_directory),"%s",d?d:"");}
 static struct state {
@@ -37,7 +40,12 @@ static struct state {
     void *ctx;
     uint64_t next;
     unsigned interval;
-    bool dirty, bag_list_only;
+    bool dirty, bag_list_only, item_profile;
+    uint32_t target_personality[PD_PARTY_SIZE];
+    int target_moves[PD_PARTY_SIZE][PD_NUM_MOVES];
+    struct { int item, slot, move, frames; } item_request;
+    const char *item_notice;
+    unsigned item_notice_frames;
 #ifdef COMPANION_NATIVE
     int pocket,scroll,detail,drag_pixels;
 #endif
@@ -46,6 +54,157 @@ static const char *error="Companion is not loaded";
 static bool supported;
 static const char*cache_status="not loaded";
 const char*companion_cache_status(void){return cache_status;}
+static bool item_crc(const struct pd_game* g, uint32_t address, uint32_t crc)
+{
+    uint8_t bytes[32];
+    return address && pd_rom_read(g,address,bytes,sizeof(bytes)) &&
+        pd_crc32(bytes,sizeof(bytes))==crc;
+}
+
+static bool item_profile_matches(const struct pd_game* g)
+{
+    const struct pd_config* cfg=g->cfg;
+    const struct pd_party_fns* party=cfg->partyFns;
+    return party && cfg->itemDescs && cfg->itemDescs->stride==44 &&
+        item_crc(g,cfg->fieldCheckBag,cfg->fieldCrcs[2]) &&
+        item_crc(g,cfg->fieldRemoveBag,cfg->fieldCrcs[3]) &&
+        item_crc(g,cfg->fieldLocked,cfg->fieldCrcs[4]) &&
+        item_crc(g,party->itemNoEffect,party->codeCrcs[2]) &&
+        item_crc(g,party->itemEffect,party->codeCrcs[3]);
+}
+
+static bool item_in(const uint16_t* ids,int count,int item)
+{
+    for(int i=0;i<count;++i) if(ids[i]==item) return true;
+    return false;
+}
+
+static int item_kind(int id)
+{
+    if(!item_guest || !S || !S->item_profile || id<=0 || S->snap.inBattle)
+        return 0;
+    const struct pd_config* cfg=S->game.cfg;
+    const struct pd_party_fns* p=cfg->partyFns;
+    if(id>=p->itemCount) return 0;
+    int kind=item_in(p->ppOne,p->ppOneCount,id) ? 2 :
+        (item_in(p->medicine,p->medicineCount,id) ||
+         item_in(p->ppAll,p->ppAllCount,id)) ? 1 : 0;
+    if(!kind) return 0;
+    uint8_t record[32];
+    if(!pd_rom_read(&S->game,cfg->itemDescs->base+44u*id,record,sizeof(record)) ||
+        (record[14]|record[15]<<8)!=id) return 0;
+    uint32_t callback=record[28]|(uint32_t)record[29]<<8|
+        (uint32_t)record[30]<<16|(uint32_t)record[31]<<24;
+    for(int i=0;i<p->useFuncCount;++i)
+        if((callback&~1u)==p->useFuncs[i]) return kind;
+    return 0;
+}
+
+bool cp_item_available(int item){ return item_kind(item)!=0; }
+
+void companion_item_cancel(void)
+{
+    if(!S) return;
+    S->item_request.frames=0;
+    S->ui.itemPicking=false;
+    S->ui.itemMoveSlot=-1;
+    S->item_notice=NULL;
+    S->item_notice_frames=0;
+    companion_invalidate();
+}
+
+static void item_result(const char* notice)
+{
+    S->item_request.frames=0;
+    S->item_notice=notice;
+    S->item_notice_frames=120;
+    S->next=0;
+    companion_invalidate();
+}
+
+static bool item_call(uint32_t address,uint32_t a,uint32_t b,uint32_t c,uint32_t d,
+                      uint32_t* out,bool query)
+{
+    uint32_t args[4]={a,b,c,d};
+    return item_guest->call(address,args,out,query);
+}
+
+void companion_item_tick(void)
+{
+    if(!S || !item_guest) return;
+    if(S->item_notice_frames && !--S->item_notice_frames){
+        S->item_notice=NULL;
+        companion_invalidate();
+    }
+    if(!S->item_request.frames) return;
+    const struct pd_config* cfg=S->game.cfg;
+    const struct pd_party_fns* p=cfg->partyFns;
+    int id=S->item_request.item, slot=S->item_request.slot, move=S->item_request.move;
+    uint8_t flags,count,raw[100];
+    uint32_t callback;
+    if(!item_kind(id) || !S->read(S->ctx,cfg->gMain+4,&callback,4) ||
+       callback!=0x080565b5 || !S->read(S->ctx,cfg->gMain+0x439,&flags,1) || (flags&2)){
+        item_result("Use items in the field.");return;
+    }
+    uint32_t mon=p->party+100u*slot;
+    struct pd_mon live;
+    if(!S->read(S->ctx,p->partyCount,&count,1) || slot>=count ||
+       !S->read(S->ctx,mon,raw,sizeof(raw)) || !pd_decode_party_mon_for(cfg,raw,&live) ||
+       live.egg || live.personality!=S->target_personality[slot] ||
+       (item_kind(id)==2 && live.moves[move]!=S->target_moves[slot][move])){
+        item_result("The party changed.");return;
+    }
+    if(!item_guest->idle() || !item_guest->begin()){
+        if(!--S->item_request.frames) item_result("Try again on the field.");
+        return;
+    }
+    uint32_t result;
+    const char* message="Item use failed.";
+    bool commit=false;
+    if(item_call(cfg->fieldLocked,0,0,0,0,&result,true)){
+        if(result) message="Use items in the field.";
+        else if(item_call(cfg->fieldCheckBag,id,1,0,0,&result,true)){
+            if(result!=1) message="No items left.";
+            else if(item_call(p->itemNoEffect,mon,id,slot,move,&result,true)){
+                if(result) message="It would have no effect.";
+                else if(item_call(p->itemEffect,mon,id,slot,move,&result,false) && result==0 &&
+                        item_call(cfg->fieldRemoveBag,id,1,0,0,&result,false) && result==1){
+                    commit=true;
+                    message="Item used.";
+                }
+            }
+        }
+    }
+    item_guest->end(commit);
+    item_result(message);
+}
+
+static void item_touch_action(void)
+{
+    struct pd_ui* ui=&S->ui;
+    int kind=ui->action==PD_ACTION_ITEM_PICK ? item_kind(ui->itemId) : 0;
+    if(kind && !S->item_request.frames){
+        ui->itemPicking=true;
+        ui->itemMoveSlot=-1;
+        memset(ui->itemSlots,0,sizeof(ui->itemSlots));
+        for(int i=0;i<S->snap.partyCount;++i){
+            const struct pd_mon* mon=&S->snap.party[i];
+            ui->itemSlots[i].ok=!mon->egg;
+            S->target_personality[i]=mon->personality;
+            memcpy(S->target_moves[i],mon->moves,sizeof(mon->moves));
+            if(kind==2)
+                for(int m=0;m<PD_NUM_MOVES;++m) ui->itemSlots[i].moves[m]=mon->moves[m]>0;
+        }
+    }else if(ui->action==PD_ACTION_ITEM_APPLY && !S->item_request.frames &&
+             ui->itemSlot>=0 && ui->itemSlot<PD_PARTY_SIZE && ui->itemMove>=0 && ui->itemMove<PD_NUM_MOVES){
+        S->item_request.item=ui->itemId;
+        S->item_request.slot=ui->itemSlot;
+        S->item_request.move=ui->itemMove;
+        S->item_request.frames=90;
+    }
+    ui->action=PD_ACTION_NONE;
+}
+
 void companion_close(void){
     supported=false;
     cp_card_reset();cp_map_reset();cp_party_art_reset();cp_art_reset();cp_party_reset();cp_free_all();S=NULL;
@@ -67,6 +226,7 @@ bool companion_load(const uint8_t header[192],size_t size,cp_read_fn read,
     if(!game.cfg){error="Unbound layout unavailable";return false;}
     S=cp_calloc(1,sizeof(*S));if(!S){error="Not enough memory for Companion";return false;}
     S->game=game;
+    S->item_profile=item_profile_matches(&S->game);
     S->read=read;S->ctx=ctx;S->interval=200;
 #ifdef COMPANION_NATIVE
     S->detail=-1;
@@ -221,13 +381,17 @@ void companion_draw(uint16_t*out){
     native_draw();if(out!=ui_canvas)memcpy(out,ui_canvas,sizeof(ui_canvas));
 #else
     struct pd_canvas c;pd_canvas_init(&c,320,240,S->pixels);cp_ui_draw(&S->ui,&c,&S->game,&S->snap);
+    if(S->item_notice&&S->ui.tab==PD_TAB_BAG){
+        pd_fill(&c,0,188,320,20,0x202631);
+        pd_text_fit(&c,8,189,304,S->item_notice,0xffffff,PD_NO_SHADOW);
+    }
     for(int i=0;i<320*240;++i){uint32_t v=S->pixels[i];out[i]=((v>>19)<<11)|(((v>>10)&63)<<5)|((v>>3)&31);}
 #endif
     S->dirty=S->bag_list_only=false;
 }
 bool companion_draw_bag_scroll(uint16_t* out,int rect[4]){
 #ifndef COMPANION_NATIVE
-    if(!companion_bag_open() || !S->bag_list_only) return false;
+    if(!companion_bag_open() || !S->bag_list_only || S->ui.itemPicking || S->item_notice) return false;
     struct pd_canvas c;
     pd_canvas_init(&c,320,208,S->pixels);
     if(!cp_bag_draw_list(&S->ui,&c,rect)) return false;
@@ -260,6 +424,7 @@ bool companion_touch(int phase,int x,int y){
     int previous_id=S->ui.pressedId, previous_y=S->ui.touchLastY;
     int previous_scroll=S->ui.bagScroll;
     bool menu=cp_ui_touch(&S->ui,phase,x,y);
+    if(phase==2) item_touch_action();
 #ifdef COMPANION_NATIVE
     if(phase==1 && S->ui.dragging && S->ui.tab==PD_TAB_BAG) {
         S->drag_pixels+=previous_y-y;

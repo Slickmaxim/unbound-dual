@@ -297,7 +297,7 @@ static void item_picker(struct pd_ui* ui, struct pd_canvas* c, const struct pd_g
     ui_item_grid(ui, &top, g, s);
     int x = MARGIN, w = c->w - 2 * MARGIN;
     char text[64];
-    snprintf(text, sizeof(text), ui->itemGive ? "Give %s to which POKéMON?" : "Use %s on which POKéMON?", pd_item_name(g, ui->itemId));
+    snprintf(text, sizeof(text), ud_tr(ui->itemGive ? "Give %s to which POKéMON?" : "Use %s on which POKéMON?"), pd_item_name(g, ui->itemId));
     int f = pd_title_box(c, x, y, w, barH, PD_TITLE_FILL);
     pd_text_fit(c, x + f + 5, pd_text_y(y, barH), w - 84, text, PD_TITLE_TEXT, PD_TITLE_SHADOW);
     ui_button(ui, c, x + w - 68, y + 3, 62, barH - 6, "CANCEL", HIT_ITEM_CANCEL);
@@ -381,7 +381,7 @@ bool ui_bag_act(struct pd_ui* ui, int id, const struct pd_snapshot* s) {
 void ui_bag_tab(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g, const struct pd_snapshot* s,
                 const struct pd_host_info* host) {
     bag_list.ui = NULL;
-    // Read-only companion: no item picker or item-application actions.
+    if (ui->itemPicking) { item_picker(ui,c,g,s); return; }
     if (!s->bagOk) {
         ui_notice(c, "NO BAG YET", "The bag shows once the game", "has loaded a save.");
         return;
