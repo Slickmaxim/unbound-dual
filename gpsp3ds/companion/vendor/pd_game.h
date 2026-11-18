@@ -181,6 +181,7 @@ struct pd_night_wild { uint32_t hourAddr; int dayFrom, dayTo, skipGroup, skipNum
 
 struct pd_config {
     const struct pd_text* text; // the hack's own species / item / move names; NULL = retail's
+    bool cyrillic; // Russian Unbound replaces the Latin glyph slots.
     const struct pd_party_layout* partyLayout; // NULL = pd_party_layout_vanilla
     const struct pd_gb_config* gb; // a Game Boy game (pd_gb.c): the Gen 3 fields below are unused
     const struct pd_battle_layout* battleLayout; // NULL = pd_battle_layout_vanilla

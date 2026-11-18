@@ -15,6 +15,7 @@ extern int cp_bottom_smooth;
 #include "pd_tables.h"
 #include "pd_experience.h"
 #include "pd_ui_internal.h"
+#include "pd_unbound_ru.h"
 
 static bool party_egg(const struct pd_ui* ui, const struct pd_mon* m) {
     return ui && ui->partySource && ui->partySource->egg ? ui->partySource->egg(ui->partySource->ctx, m) : m->egg || m->species == PD_SPECIES_EGG;
@@ -91,7 +92,7 @@ static void held_mark(struct pd_canvas* c, int x, int y) {
 }
 
 static const char* mon_display_name(const struct pd_ui* ui, const struct pd_game* g, const struct pd_mon* m, char* buf, size_t len) {
-    if (party_egg(ui, m)) return "EGG";
+    if (party_egg(ui, m)) return pd_species_name(g, PD_SPECIES_EGG, buf, len);
     if (m->nickname[0]) return m->nickname;
     return party_species(ui, g, m->species, buf, len);
 }
@@ -386,7 +387,8 @@ static const struct { const char* c; int code; } OTHER_CODES[] = {
 };
 
 // The next character's Gen 3 code for FONT_SMALL (encodeSmallFont); '?' for anything the font doesn't have.
-static int small_font_code(const struct pd_party_style* st, const char** s) {
+static int small_font_code(const struct pd_party_art* art, const char** s) {
+    const struct pd_party_style* st = art->style;
     unsigned char c = (unsigned char) **s;
     if (c < 0x80) {
         (*s)++;
@@ -415,6 +417,10 @@ static int small_font_code(const struct pd_party_style* st, const char** s) {
     const char* at = *s;
     for (int i = 1; i < len && at[i]; i++) (*s)++;
     (*s)++;
+    if (art->cyrillic && len == 2 && at[1]) {
+        uint8_t code = pd_ru_glyph_code((c & 0x1F) << 6 | ((unsigned char) at[1] & 0x3F));
+        if (code) return code;
+    }
     for (size_t i = 0; i < sizeof(OTHER_CODES) / sizeof(*OTHER_CODES); i++)
         if (!strncmp(at, OTHER_CODES[i].c, (size_t) len)) return OTHER_CODES[i].code;
     for (size_t i = 0; i < sizeof(WESTERN) / sizeof(*WESTERN); i++)
@@ -425,7 +431,7 @@ static int small_font_code(const struct pd_party_style* st, const char** s) {
 // A card shown scaled keeps its text out of the scaling, which would blur it: art_text notes it down here and card_texts
 // draws it on the canvas afterwards, at whole pixels.
 struct card_text {
-    char text[24];
+    char text[40];
     short x, y;
     bool right;
     uint32_t fg, shadow;
@@ -462,7 +468,7 @@ static void art_text(const struct pd_party_art* art, const struct art_geometry* 
         return;
     }
     while (*s) {
-        int g = small_font_code(art->style, &s);
+        int g = small_font_code(art, &s);
         for (int yy = 0; yy < GLYPH_H; yy++) {
             int wy = y + yy, row = pd_party_glyph_row(art, g, yy);
             if (wy < 0 || wy >= a->h || !row) continue;
@@ -471,7 +477,8 @@ static void art_text(const struct pd_party_art* art, const struct art_geometry* 
                 if ((p == 1 || p == 2) && wx >= 0 && wx < a->w) window[wy * a->w + wx] = PD_ART_OPAQUE | (p == 1 ? fg : shadow);
             }
         }
-        x += art->style->glyphWidths[g];
+        x += art->cyrillic && g < 256 && pd_ru_codepoint((uint8_t) g) ?
+            art->cyrillicWidths[g] : art->style->glyphWidths[g];
     }
 }
 
@@ -584,7 +591,7 @@ static void art_slot_at(struct pd_canvas* c, const struct pd_game* g, const stru
     if (m->egg) {
         // DisplayPartyPokemonData's egg branch: the no-HP box and the nickname only.
         if (!art_frame(art, selected ? PD_SLOT_NOHP_SELECTED : PD_SLOT_NOHP, a)) return;
-        art_text(art, a, st->eggName, art_left(a, st->nameX), art_text_y(a, st->nameY), st->text, st->textShadow);
+        art_text(art, a, art->cyrillic ? "Яйцо" : st->eggName, art_left(a, st->nameX), art_text_y(a, st->nameY), st->text, st->textShadow);
         art_window(c, a, x, y, 255);
         art_sprites(c, a, art, g, x, y, m, selected);
         return;

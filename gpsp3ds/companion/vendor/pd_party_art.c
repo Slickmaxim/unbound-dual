@@ -68,6 +68,8 @@ static bool art_build(struct pd_party_art* a, const struct pd_game* g, const str
     if ((st->slotEmpty >= 0 && !empty) || (st->ball >= 0 && (!ball || !ballPal))) return false;
     a->style = st;
     a->font = font;
+    a->cyrillic = g->cfg && g->cfg->cyrillic &&
+        pd_rom_read(g, 0x081EEF00, a->cyrillicWidths, sizeof(a->cyrillicWidths));
     int w = st->tilesW * 8, h = st->tilesH * 8, size = blob_size(st->gfx);
     for (int f = 0; f < PD_SLOT_FRAMES; f++) {
         const uint8_t* map = f == PD_SLOT_EMPTY ? empty : f == PD_SLOT_NOHP || f == PD_SLOT_NOHP_SELECTED ? noHp : main;

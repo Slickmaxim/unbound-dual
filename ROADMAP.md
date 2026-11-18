@@ -225,3 +225,5 @@ Sonic Advance 1 and 2, Ace Combat Advance, Asterix, Downhill Jam, Pokémon Emera
 - GPU startup recovery (test 15). Respect the stored GPU setting and use CPU display when L is held at startup. Fresh configurations default to GPU On, and the existing freeze guard still applies.
 
 - Prepare the Fast forward badge textures in tiled memory on the CPU during startup. GPU Display renders the game and badge normally, with no blocking texture transfer for the badge. Check startup with GPU On on Old 3DS.
+
+- Added an exact profile for the P.E. Russian 2.1.1.1 ROM (test 16). Read Russian names and descriptions from the ROM, keep native Party frames and fonts, and use Cyrillic labels on the Trainer Card. Host checks use the real RU ROM and baseline Unbound RAM fixtures. Console validation is pending.

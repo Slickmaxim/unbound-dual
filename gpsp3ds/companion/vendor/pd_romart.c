@@ -7,7 +7,7 @@
 
 #include "pd_smol.h"
 #include "pd_games.h"
-#include "pd_unbound_es.h"
+#include "pd_unbound_profile.h"
 
 // --- finding blobs (RomArt.find) ---
 
@@ -168,11 +168,25 @@ void pd_romart_scan(const struct pd_game* g) {
         [PD_FR_FONT_NORMAL_WIDTHS]=true,[PD_CARD_STAR_PAL]=true,
         [PD_FR_PLAYER_RED_GFX]=true,[PD_FR_PLAYER_LEAF_GFX]=true,[PD_FR_PLAYER_PAL]=true,
     };
+    const struct pd_unbound_profile* profile = pd_unbound_profile(g->sha1);
+    // The translated graphics have verified addresses in this exact ROM.
+    const struct { enum pd_blob id; uint32_t offset, crc; bool lz; } local[] = {
+        {PD_FR_FONT_NORMAL, 0x081F3100, profile ? profile->normalFontCRC : 0, false},
+        {PD_FR_FONT_NORMAL_WIDTHS, 0x081FB100, profile ? profile->normalWidthsCRC : 0, false},
+        {PD_FR_FONT_SMALL, 0x081EAF00, profile ? profile->smallFontCRC : 0, false},
+        {PD_UB_STATUS_GFX, 0x08B1E280, profile ? profile->statusGfxCRC : 0, true},
+        {PD_CFRU_PARTY_BG_GFX, 0x088001D0, profile ? profile->partyGfxCRC : 0, true}
+    };
     int wanted[PD_BLOB_COUNT], n = 0;
     const struct pd_blob_sig* sigs[PD_BLOB_COUNT];
     static uint8_t* decoded[PD_BLOB_COUNT];
+    bool direct[PD_BLOB_COUNT] = {0};
+    if (profile && profile->language == 'R') {
+        for (unsigned i = 0; i < sizeof(local) / sizeof(local[0]); i++)
+            direct[local[i].id] = local[i].crc != 0;
+    }
     for (int i = 0; i < PD_BLOB_COUNT; i++) {
-        if (party[i] || card[i]) {
+        if ((party[i] || card[i]) && !direct[i]) {
             sigs[n] = &pd_blob_sigs[i];
             wanted[n++] = i;
         }
@@ -180,19 +194,10 @@ void pd_romart_scan(const struct pd_game* g) {
     cp_progress("Finding graphics",0,0);
     find_blobs(g, sigs, n, decoded);
     for (int i = 0; i < n; i++) found[wanted[i]] = decoded[i];
-    const struct pd_unbound_es_profile* profile = pd_unbound_es_profile(g->sha1);
     if (profile) {
-        // Translated fonts/status labels can differ while their slot geometry
-        // is unchanged. Recover only known resources from this exact ROM.
-        const struct { enum pd_blob id; uint32_t offset, crc; bool lz; } local[] = {
-            {PD_FR_FONT_NORMAL, 0x081F3100, profile->normalFontCRC, false},
-            {PD_FR_FONT_NORMAL_WIDTHS, 0x081FB100, profile->normalWidthsCRC, false},
-            {PD_FR_FONT_SMALL, 0x081EAF00, profile->smallFontCRC, false},
-            {PD_UB_STATUS_GFX, 0x08B1E280, profile->statusGfxCRC, true}
-        };
         for (unsigned i=0;i<sizeof(local)/sizeof(local[0]);i++) {
             enum pd_blob id=local[i].id;
-            if (found[id]) continue;
+            if (found[id] || !local[i].crc) continue;
             size_t size=pd_blob_sigs[id].size;
             uint8_t* bytes=malloc(size);
             bool ok=false;

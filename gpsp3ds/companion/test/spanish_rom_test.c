@@ -51,12 +51,12 @@ int main(int argc,char**argv){
  FILE* rf=fopen(argv[1],"rb");assert(rf);unsigned char* image=malloc(32u*1024u*1024u);assert(image);assert(fread(image,1,32u*1024u*1024u,rf)==32u*1024u*1024u);fclose(rf);
  for(unsigned i=0;i<1024;i++)memory_map_read[4096+i]=image+i*32768;
  assert(S&&S->game.language=='S');
- const struct pd_unbound_es_profile* profile=pd_unbound_es_profile(S->game.sha1);assert(profile);
+ const struct pd_unbound_profile* profile=pd_unbound_profile(S->game.sha1);assert(profile);
  bool za=!strcmp(S->game.sha1,"d5b312465c0a95bcb6428bd61cc170994a2a65fc");
  bool legacy=!strcmp(S->game.sha1,"1104054a3061b35b85b04757fbca5a3686cca60c");
  assert(S->game.cfg->speciesCount==(za?1314:1294));
  assert(S->game.cfg->text->itemsCount==(za?767:729));
- assert(!pd_unbound_es_profile("117449bd7822fad0db293a4f7e364787e4f8543b"));
+ assert(!pd_unbound_profile("117449bd7822fad0db293a4f7e364787e4f8543b"));
  // Compare adapter addresses with pointers actually referenced by game code.
  uint32_t ptr;memcpy(&ptr,image+0x1bc,4);assert(S->game.cfg->speciesInfo==ptr);
  memcpy(&ptr,image+0x1c8,4);assert(S->game.cfg->itemDescs->base==ptr);

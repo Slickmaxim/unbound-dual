@@ -1,4 +1,5 @@
 #include "pd_card.h"
+#include "pd_unbound_ru.h"
 #include "../localization.h"
 
 #include <stdio.h>
@@ -388,6 +389,7 @@ struct art {
     const uint8_t* d[PD_BLOB_COUNT];
     uint32_t* img;
     const struct layout* lay;
+    bool cyrillic;
 };
 
 static uint32_t expand(uint32_t v) {
@@ -458,6 +460,14 @@ static struct str enc(const char* text) {
     struct str s = { 0 };
     for (const unsigned char* p = (const unsigned char*) text; *p; p++) {
         int ch = *p;
+        if ((ch == 0xD0 || ch == 0xD1) && p[1]) {
+            uint8_t code = pd_ru_glyph_code((ch & 0x1F) << 6 | (p[1] & 0x3F));
+            if (code) {
+                add(&s, code);
+                ++p;
+                continue;
+            }
+        }
         if (ch == 0xC3 && p[1]) {
             int code=-1;
             switch(p[1]) {
@@ -573,27 +583,27 @@ static void kanto_text(const struct art* a, const struct blobs* b, const struct 
                        bool colon) {
     struct str s, t;
     if (!back) {
-        s = enc("NAME: ");
+        s = enc(a->cyrillic ? "ИМЯ: " : "NAME: ");
         t = name_of(c);
         cat(&s, &t);
         say(a, b, 20, 29, &s);
-        s = enc("IDNo.");
+        s = enc(a->cyrillic ? "ИД " : "IDNo.");
         t = digits(c->trainerId, 5, LEADING_ZEROS, 0);
         cat(&s, &t);
         say(a, b, 142, 10, &s);
         struct str money = enc("¥");
         t = digits((int) c->money, 6, LEFT, 0);
         cat(&money, &t);
-        s = enc("MONEY");
+        s = enc(a->cyrillic ? "ДЕНЬГИ" : "MONEY");
         say(a, b, 20, 56, &s);
         say(a, b, (134 - 6 * money.n) & 0xFF, 56, &money);
         if (c->dexCaught >= 0) {
             t = digits(c->dexCaught, 3, LEFT, 0);
-            s = enc("POKéDEX");
+            s = enc(a->cyrillic ? "ПОКЕДЕКС" : "POKéDEX");
             say(a, b, 20, 72, &s);
             say(a, b, (136 - 6 * t.n) & 0xFF, 72, &t);
         }
-        s = enc("TIME");
+        s = enc(a->cyrillic ? "ВРЕМЯ" : "TIME");
         say(a, b, 20, 88, &s);
         t = digits(c->hours, 3, RIGHT, 0x00);
         say(a, b, 101, 88, &t);
@@ -608,17 +618,17 @@ static void kanto_text(const struct art* a, const struct blobs* b, const struct 
     t = name_of(c);
     say(a, b, 138, 11, &t);
     if (c->hofDebut) {
-        s = enc("HALL OF FAME DEBUT  ");
+        s = enc(a->cyrillic ? "ЗАЛ СЛАВЫ" : "HALL OF FAME DEBUT  ");
         say(a, b, 10, 35, &s);
         t = hof_time(c->hofDebut, 0x00);
         say_red(a, b, 164, 35, &t);
     }
     if (c->linkWins || c->linkLosses) {
-        s = enc("LINK BATTLES");
+        s = enc(a->cyrillic ? "СЕТЕВЫЕ БОИ" : "LINK BATTLES");
         say(a, b, 10, 51, &s);
-        s = enc("W:");
+        s = enc(a->cyrillic ? "П:" : "W:");
         say(a, b, 130, 51, &s);
-        s = enc("L:");
+        s = enc(a->cyrillic ? "ПР:" : "L:");
         say(a, b, 130 + 0x30, 51, &s);
         t = digits(c->linkWins, 4, RIGHT, 0x00);
         say_red(a, b, 144, 51, &t);
@@ -626,19 +636,19 @@ static void kanto_text(const struct art* a, const struct blobs* b, const struct 
         say_red(a, b, 192, 51, &t);
     }
     if (c->trades) {
-        s = enc("POKéMON TRADES");
+        s = enc(a->cyrillic ? "ОБМЕНЫ ПОКЕМОНОВ" : "POKéMON TRADES");
         say(a, b, 10, 67, &s);
         t = digits(c->trades, 5, RIGHT, 0x00);
         say_red(a, b, 186, 67, &t);
     }
     if (c->unionRoom) {
-        s = enc("UNION TRADES & BATTLES");
+        s = enc(a->cyrillic ? "ОБМЕНЫ И БОИ" : "UNION TRADES & BATTLES");
         say(a, b, 10, 83, &s);
         t = digits(c->unionRoom, 5, RIGHT, 0x00);
         say_red(a, b, 186, 83, &t);
     }
     if (c->berryCrush) {
-        s = enc("BERRY CRUSH");
+        s = enc(a->cyrillic ? "ДАВКА ЯГОД" : "BERRY CRUSH");
         say(a, b, 10, 99, &s);
         t = digits(c->berryCrush, 5, RIGHT, 0x00);
         say_red(a, b, 186, 99, &t);
@@ -839,7 +849,7 @@ bool pd_card_render(const struct pd_game* g, const struct pd_card_info* c, bool 
     const struct blobs* b = c->style == PD_CARD_UNBOUND ? &UNBOUND : ry ? &RECHARGED_YELLOW : kanto ? &KANTO :
         c->style == PD_CARD_LEGACY ? &LEGACY : c->style == PD_CARD_LAZARUS ? &LAZARUS : c->style == PD_CARD_SOULGOLD ? &SOULGOLD :
         c->style == PD_CARD_GLAZED ? &GLAZED : &HOENN;
-    struct art a = { .img = img, .lay = ry ? &RY_LAYOUT : kanto ? &KANTO_LAYOUT : c->style == PD_CARD_LAZARUS ? &LAZARUS_LAYOUT :
+    struct art a = { .img = img, .cyrillic = g->cfg && g->cfg->cyrillic, .lay = ry ? &RY_LAYOUT : kanto ? &KANTO_LAYOUT : c->style == PD_CARD_LAZARUS ? &LAZARUS_LAYOUT :
         c->style == PD_CARD_SOULGOLD ? &SOULGOLD_LAYOUT : &HOENN_LAYOUT };
     if (c->style != PD_CARD_KANTO && c->style != PD_CARD_HOENN && c->style != PD_CARD_LEGACY && c->style != PD_CARD_UNBOUND &&
         c->style != PD_CARD_LAZARUS && c->style != PD_CARD_SOULGOLD && c->style != PD_CARD_GLAZED && !ry) return false;

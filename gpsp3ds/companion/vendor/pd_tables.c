@@ -30,7 +30,7 @@ static const struct pd_text* hack_text(const struct pd_game* g) {
 
 const char* pd_species_name(const struct pd_game* g, int species, char* buf, size_t len) {
     if (species == 0) return "-";
-    if (species == PD_SPECIES_EGG) return "EGG";
+    if (species == PD_SPECIES_EGG) return g && g->cfg && g->cfg->cyrillic ? "Яйцо" : "EGG";
     const struct pd_text* t = hack_text(g);
     if (t && t->species) {
         if (species > 0 && species < t->speciesCount && t->species[species]) {

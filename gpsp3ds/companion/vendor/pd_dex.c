@@ -156,10 +156,12 @@ static void entry_category(const struct pd_game* g, const uint8_t* e, char* out,
     if (cfg->entryCategoryPtr) {
         uint32_t p = u32(e);
         const uint8_t* s = in_rom(g, p) ? pd_rom_at(g, p, (size_t) cfg->entryCategoryLen + 1) : NULL;
-        if (s) pd_gen3_text(s, (size_t) cfg->entryCategoryLen + 1, out, outLen);
+        if (s) pd_gen3_text_for(g->cfg, s, (size_t) cfg->entryCategoryLen + 1, out, outLen);
     } else {
-        pd_gen3_text(e, (size_t) cfg->entryCategoryLen, out, outLen);
+        pd_gen3_text_for(g->cfg, e, (size_t) cfg->entryCategoryLen, out, outLen);
     }
+    // The RU patch translates the shared Seed category from Ivysaur onward.
+    if (cfg->cyrillic && !strcmp(out, "Сддг")) snprintf(out, outLen, "%s", cfg->probeCategory);
 }
 
 static bool same_text(const char* a, const char* b) {
@@ -202,7 +204,7 @@ static void build(const struct pd_game* g) {
     const uint8_t* nat = pd_rom_at(g, cfg->speciesToNational, (size_t) (speciesCount - 1) * 2);
     const uint8_t* pic = pd_rom_at(g, cfg->frontPics + 8u * (uint32_t) cfg->probeSpecies + 6, 2);
     if (!e1 || !nat || !pic) return;
-    char category[24];
+    char category[37];
     entry_category(g, e1, category, sizeof(category));
     if (!same_text(category, cfg->probeCategory) || u16(e1 + cfg->entryHeightOff) != cfg->probeHeight ||
         u16(e1 + cfg->entryHeightOff + 2) != cfg->probeWeight || u16(nat + (cfg->probeSpecies - 1) * 2) != 1 ||
@@ -284,7 +286,7 @@ static void ability_name(const struct pd_game* g, int id, char* out, size_t outL
         at = in_rom(g, p) ? pd_rom_at(g, p, len) : NULL;
         if (!at) return;
     }
-    pd_gen3_text(at, len, out, outLen);
+    pd_gen3_text_for(g->cfg, at, len, out, outLen);
 }
 
 // The page of an expansion game (the app's readExpansionEntry): everything is in the species' gSpeciesInfo entry.
@@ -295,12 +297,12 @@ static bool expansion_entry(const struct pd_game* g, int national, int species, 
     if (!b) return false;
     out->national = national;
     out->species = species;
-    pd_gen3_text(b + x->categoryOff, 13, out->category, sizeof(out->category));
+    pd_gen3_text_for(g->cfg, b + x->categoryOff, 13, out->category, sizeof(out->category));
     out->heightDm = u16(b + x->natDexOff + 2);
     out->weightHg = u16(b + x->natDexOff + 4);
     uint32_t d = u32(b + x->descriptionOff);
     const uint8_t* text = in_rom(g, d) ? pd_rom_at(g, d, 200) : NULL;
-    if (text) pd_gen3_text(text, 200, out->description, sizeof(out->description));
+    if (text) pd_gen3_text_for(g->cfg, text, 200, out->description, sizeof(out->description));
     static const int ORDER[6] = { 0, 1, 2, 4, 5, 3 };
     for (int i = 0; i < 6; i++) out->stats[i] = b[ORDER[i]];
     out->type1 = b[6];
@@ -343,7 +345,7 @@ bool pd_dex_entry(const struct pd_game* g, int national, struct pd_dex_entry* ou
         const uint8_t* d = in_rom(g, p) ? pd_rom_at(g, p, 200) : NULL;
         if (!d) continue;
         if (used && used + 1 < sizeof(out->description)) out->description[used++] = ' ';
-        pd_gen3_text(d, 200, out->description + used, sizeof(out->description) - used);
+        pd_gen3_text_for(g->cfg, d, 200, out->description + used, sizeof(out->description) - used);
         used = strlen(out->description);
     }
 

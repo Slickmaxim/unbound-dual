@@ -10,7 +10,9 @@
 #include "vendor/pd_ui_internal.h"
 #include "vendor/pd_map.h"
 #include "vendor/pd_tables.h"
-#include "vendor/pd_unbound_es.h"
+#include "vendor/pd_unbound_profile.h"
+#include "vendor/pd_unbound_ru.h"
+#include "vendor/pd_font.h"
 #include "vendor/pd_party_art.h"
 #include "vendor/pd_romart.h"
 #include <string.h>
@@ -278,6 +280,7 @@ static void item_touch_action(void)
 
 void companion_close(void){
     supported=false;
+    pd_font_set(NULL, 0);
     cp_card_reset();cp_map_reset();cp_party_art_reset();cp_art_reset();cp_party_reset();cp_free_all();S=NULL;
     error="Companion is not loaded";
 }
@@ -291,12 +294,17 @@ bool companion_load(const uint8_t header[192],size_t size,cp_read_fn read,
     game.romSize=size;game.romRead=read;game.romAt=span;game.romCtx=ctx;
     pd_game_identify(&game);
     if(strcmp(game.sha1,"b4776b82a4c7915d0fadeaa27e013523f99dfd94") &&
-       !pd_unbound_es_profile(game.sha1)){
-        error="Requires a supported Unbound EN/ES ROM";return false;
+       !pd_unbound_profile(game.sha1)){
+        error="Requires a supported Unbound EN/ES/RU ROM";return false;
     }
     if(!game.cfg){error="Unbound layout unavailable";return false;}
     S=cp_calloc(1,sizeof(*S));if(!S){error="Not enough memory for Companion";return false;}
     S->game=game;
+    if (game.cfg->cyrillic && !pd_ru_load_text(&S->game)) {
+        companion_close();
+        error="Could not load Russian ROM text";
+        return false;
+    }
     S->item_profile=item_profile_matches(&S->game);
     S->tm_profile=S->item_profile && tm_profile_matches(&S->game);
     S->read=read;S->ctx=ctx;S->interval=200;
@@ -323,6 +331,7 @@ bool companion_load(const uint8_t header[192],size_t size,cp_read_fn read,
         }
     }else cache_status="hit";
     if(cp_allocation_failed()){companion_close();error="Not enough memory for Companion";return false;}
+    if (S->game.cfg->cyrillic) pd_ru_use_font(&S->game);
     supported=true;error=NULL;S->dirty=true;S->bag_list_only=false;return true;
 }
 void companion_options(bool dark,bool smooth){

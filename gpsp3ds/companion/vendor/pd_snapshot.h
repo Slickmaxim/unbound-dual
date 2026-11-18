@@ -185,6 +185,7 @@ enum pd_battle_state pd_battle_state_read(const struct pd_config* cfg, pd_read_f
 // The English games' text (up to 0xFF or maxLen bytes) as UTF-8; line breaks
 // become spaces and control codes are skipped.
 void pd_gen3_text(const uint8_t* src, size_t maxLen, char* out, size_t outLen);
+void pd_gen3_text_for(const struct pd_config* cfg, const uint8_t* src, size_t maxLen, char* out, size_t outLen);
 
 // Decodes one struct Pokemon (100 bytes); false for an empty slot.
 bool pd_decode_party_mon(const uint8_t* raw, struct pd_mon* out);

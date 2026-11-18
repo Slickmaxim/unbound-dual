@@ -36,7 +36,7 @@
 
 ## The bottom screen
 
-A companion for **Pokémon Unbound 2.1.1.1 English and supported Spanish builds**, designed for Nintendo 3DS, including Old 3DS in 2D. The game runs through gpSP's ARM11 JIT; the companion reads game data to display useful information while you play.
+A companion for **Pokémon Unbound 2.1.1.1 English and supported Spanish and Russian builds**, designed for Nintendo 3DS, including Old 3DS in 2D. The game runs through gpSP's ARM11 JIT; the companion reads game data to display useful information while you play.
 
 | Tab | What you can see |
 | --- | --- |
@@ -76,7 +76,7 @@ on the SD card.
 
 ## Installation
 
-You need a homebrew-enabled Nintendo 3DS and your own **Pokémon Unbound 2.1.1.1 English or one of the supported Spanish** ROM.
+You need a homebrew-enabled Nintendo 3DS and your own **Pokémon Unbound 2.1.1.1 English or a supported Spanish or Russian** ROM.
 
 1. Install `unbound-dual.cia` using FBI. For Homebrew Launcher, copy `unbound-dual.3dsx` to your SD card instead.
 2. Open **Unbound Dual** and select your ROM on the first launch.
@@ -175,4 +175,6 @@ This is an unofficial fan project, unaffiliated with the original projects, Nint
 Spanish ES v1.08 SHA-1: `d5b312465c0a95bcb6428bd61cc170994a2a65fc`.
 Spanish sinza SHA-1: `117449bd7822fad0db293a4f7e364787e4f8543a`.
 Spanish 2.1.1.1 SHA-1: `1104054a3061b35b85b04757fbca5a3686cca60c`.
-Only these exact Spanish hashes are supported, regardless of filename.
+Russian 2.1.1.1 (P.E.) SHA-1: `87d1485eaa64e242d39874add766a34f46cd9b32`.
+
+The Russian ROM is recognized by its SHA-1. Party, Bag, Map and Trainer Card display Cyrillic game data read directly from the patched ROM. The emulator's interface setting still offers English or Spanish. Apply the patch to your own ROM following the [P.E. translation instructions](https://github.com/PEdeveloper/pokemon-unbound-ru).

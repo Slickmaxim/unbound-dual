@@ -10,7 +10,7 @@
 #include "pd_games.h"
 #include "pd_randomized.h"
 #include "pd_sha1.h"
-#include "pd_unbound_es.h"
+#include "pd_unbound_profile.h"
 #include "pd_tables.h"
 
 // The configs come from gamedata/ (gamedata/targets/3ds.toml picks the fields
@@ -216,7 +216,7 @@ void pd_game_detect(struct pd_game* g, const uint8_t* header, size_t romSize) {
     (void) romSize;
     g->kind = PD_GAME_FIRERED;
     g->title = "Pokémon Unbound";
-    g->unsupported = "Supported Unbound EN/ES ROM required";
+    g->unsupported = "Supported Unbound EN/ES/RU ROM required";
 #else
 
     if (!strcmp(g->code, "BPRE") || !strcmp(g->code, "BPGE")) {
@@ -653,7 +653,7 @@ static void identify(struct pd_game* g) {
     g->cfg = NULL;
     g->guide = PD_GUIDE_NONE;
     g->retail = g->randomized = false;
-    g->unsupported = "Supported Unbound EN/ES ROM required";
+    g->unsupported = "Supported Unbound EN/ES/RU ROM required";
     if (!g->rom) return;
     extern bool cp_identity_sha(size_t,char[41]);
     extern void cp_identity_commit(const char[41]);
@@ -678,27 +678,29 @@ identified:
         g->cfg = &PD_CONFIG_UNBOUND_FR;
         g->language = 'F';
     } else {
-        const struct pd_unbound_es_profile* profile = pd_unbound_es_profile(g->sha1);
+        const struct pd_unbound_profile* profile = pd_unbound_profile(g->sha1);
         if (profile) {
             // Each exact ROM selects its own live tables and translated data.
-            static struct pd_config es;
+            static struct pd_config localized;
             static struct pd_item_descs items;
             items = (struct pd_item_descs){
                 .base=profile->itemDescs, .stride=44, .descOff=20, .idOff=14
             };
-            es = PD_CONFIG_UNBOUND;
-            es.text = profile->text;
-            es.itemDescs = &items;
-            es.speciesInfo = profile->speciesInfo;
-            es.speciesCount = profile->text->speciesCount;
-            es.speciesToNational = profile->speciesToNational;
-            es.frontPics = profile->frontPics;
-            es.palettes = es.dexPalettes = profile->palettes;
-            es.learnsets = profile->learnsets;
-            es.monIconTable = profile->monIconTable;
-            es.itemIconTable = profile->itemIconTable;
-            g->cfg = &es;
-            g->language = 'S';
+            localized = PD_CONFIG_UNBOUND;
+            localized.text = profile->text ? profile->text : PD_CONFIG_UNBOUND.text;
+            localized.cyrillic = profile->language == 'R';
+            if (localized.cyrillic) localized.probeCategory = "Семя";
+            localized.itemDescs = &items;
+            localized.speciesInfo = profile->speciesInfo;
+            localized.speciesCount = localized.text->speciesCount;
+            localized.speciesToNational = profile->speciesToNational;
+            localized.frontPics = profile->frontPics;
+            localized.palettes = localized.dexPalettes = profile->palettes;
+            localized.learnsets = profile->learnsets;
+            localized.monIconTable = profile->monIconTable;
+            localized.itemIconTable = profile->itemIconTable;
+            g->cfg = &localized;
+            g->language = profile->language;
         }
     }
     if (g->cfg) {
@@ -794,16 +796,16 @@ identified:
 
 // The app's extras for a ROM (its look, its PC's moves), by SHA-1: pd_games_gen.c's entries are sorted by it.
 const struct pd_game_entry* pd_game_entry_for(const char* sha1) {
-    const struct pd_unbound_es_profile* profile = pd_unbound_es_profile(sha1);
+    const struct pd_unbound_profile* profile = pd_unbound_profile(sha1);
     if (profile) {
-        static struct pd_game_entry es;
+        static struct pd_game_entry localized;
         const struct pd_game_entry* en = pd_game_entry_for("b4776b82a4c7915d0fadeaa27e013523f99dfd94");
         if (!en) return NULL;
-        es = *en;
-        es.sha1 = profile->sha1;
-        es.file = profile->label;
-        es.language = 'S';
-        return &es;
+        localized = *en;
+        localized.sha1 = profile->sha1;
+        localized.file = profile->label;
+        localized.language = profile->language;
+        return &localized;
     }
     int lo = 0, hi = pd_game_entry_count - 1;
     while (lo <= hi) {
