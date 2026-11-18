@@ -2862,6 +2862,77 @@ static void ui_wait_message(const char *title, const char *body)
    }
 }
 
+#ifdef CP_ENABLED
+static bool install_update_from_ui(void)
+{
+   scr_message(ud_tr("Install update"), ud_tr("Downloading from GitHub..."), NULL);
+   ui_present();
+   if (!update_install(update_launch_path))
+      return false;
+   ui_wait_message(ud_tr("Update installed"), ud_tr("Reopen Unbound Dual to use the new version."));
+   quit_app = true;
+   return true;
+}
+
+static void startup_update_prompt(void)
+{
+   if (!opt_update)
+      return;
+
+   // The check has been running since configuration load. Give it a bounded
+   // window to finish, with an option to go straight into the game.
+   if (update_state() == UPD_CHECKING) {
+      u64 started = svcGetSystemTick();
+      scr_message(ud_tr("Check for updates"), ud_tr("Checking..."), ud_tr("B or tap to play now"));
+      ui_present();
+      while (aptMainLoop() && update_state() == UPD_CHECKING &&
+             svcGetSystemTick() - started < 16ULL * SYSCLOCK_ARM11) {
+         hidScanInput();
+         if (hidKeysDown() & (KEY_B | KEY_TOUCH))
+            return;
+         gspWaitForVBlank();
+      }
+   }
+   if (!aptMainLoop() || update_state() != UPD_NEWER)
+      return;
+
+   char version[64];
+   snprintf(version, sizeof(version), ud_tr("Version %s is available."), update_latest());
+   scr_message(ud_tr("Unbound Dual update"), version, NULL);
+   ui_rrect(24, 163, 128, 38, 8, UI_RGB(38, 48, 66));
+   ui_rrect(168, 163, 128, 38, 8, UI_RGB(35, 88, 164));
+   ui_text_center(&ui_font_body, 88, 174, ud_tr("B  Later"), UI_RGB(236, 239, 244));
+   ui_text_center(&ui_font_body, 232, 174, ud_tr("A  Update"), UI_RGB(236, 239, 244));
+   ui_present();
+
+   // Require a fresh press so a button held in the ROM picker won't install.
+   hidScanInput();
+   while (aptMainLoop()) {
+      hidScanInput();
+      u32 down = hidKeysDown();
+      if (down & KEY_B)
+         return;
+      bool install = (down & KEY_A) != 0;
+      if (down & KEY_TOUCH) {
+         touchPosition touch;
+         hidTouchRead(&touch);
+         if (touch.py >= 163 && touch.py < 201) {
+            if (touch.px >= 24 && touch.px < 152)
+               return;
+            if (touch.px >= 168 && touch.px < 296)
+               install = true;
+         }
+      }
+      if (install) {
+         if (!install_update_from_ui())
+            ui_wait_message(ud_tr("Update failed"), update_error());
+         return;
+      }
+      gspWaitForVBlank();
+   }
+}
+#endif
+
 /* Show the paused game's last frame again with the current 3D / colour /
  * size settings, so changes in the menu can be seen right away. */
 static void preview_refresh(void)
@@ -3190,7 +3261,7 @@ static void menu_build(int tab)
          else
             snprintf(about, sizeof(about), FRONTEND_NAME
 #ifdef CP_ENABLED
-                     " v0.2.0 test 9"
+                     " v0.2.0 test 10"
 #else
                      " " GPSP3D_VERSION
 #endif
@@ -3590,13 +3661,8 @@ static bool game_menu(void)
 #ifdef CP_ENABLED
                case M_INSTALL_UPDATE:
                   sram_flush(true);
-                  scr_message(ud_tr("Install update"), ud_tr("Downloading from GitHub..."), NULL);
-                  ui_present();
-                  if (update_install(update_launch_path)) {
-                     ui_wait_message(ud_tr("Update installed"), ud_tr("Reopen Unbound Dual to use the new version."));
-                     quit_app = true;
+                  if (install_update_from_ui())
                      goto resume;
-                  }
                   snprintf(note, sizeof(note), "%s", update_error());
                   note_ok = 0;
                   break;
@@ -4403,8 +4469,19 @@ int main(int argc, char **argv)
    clear_top();
    gpu_guard_clear();
    direct_launch_init(argc, argv);
+#ifdef CP_ENABLED
+   bool startup_prompt_pending = true;
+#endif
    while (!quit_app && next_game())
    {
+#ifdef CP_ENABLED
+      if (startup_prompt_pending) {
+         startup_prompt_pending = false;
+         startup_update_prompt();
+         if (quit_app || !aptMainLoop())
+            break;
+      }
+#endif
       {
          const char *nm = strrchr(rom_path, '/');
          scr_message("Loading", nm ? nm + 1 : rom_path, NULL);

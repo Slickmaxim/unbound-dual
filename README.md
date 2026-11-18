@@ -58,8 +58,9 @@ The app uses **one HOME Menu CIA**. Choose your ROM once; later launches open it
 
 > **Spanish preview:** this branch supports ES v1.08, ES v1.08 sinza and the supplied ES 2.1.1.1 ROM, plus an English / Español interface switch. The user confirmed all three on hardware; including the corrected party artwork. The fast-forward indicator is also confirmed. Partial Bag redraws await console testing. See [Spanish testing notes](docs/SPANISH_SUPPORT_UK.md).
 
-**In-app updates.** When the System tab finds a newer stable Unbound Dual
-release, select **Install update**. Reopen the app after installation. The
+**In-app updates.** When startup finds a newer stable Unbound Dual release, choose
+**Update** or **Later** before the ROM loads. To install later, choose
+**Install update** in System. Reopen the app after installation. The
 3DSX build keeps the previous executable next to it with a `.bak` suffix.
 A CIA release must retain the same title ID and use a higher CIA package version.
 
@@ -82,7 +83,7 @@ To choose a different ROM, open **MENU → System → Unbound ROM**. A missing o
 | Supported game | Pokémon Unbound 2.1.1.1, English |
 | English ROM SHA-1 | `b4776b82a4c7915d0fadeaa27e013523f99dfd94` |
 | Application Title ID | `000400000BAC8200` |
-| Companion CIA version | `0.0.14` (test 9) |
+| Companion CIA version | `0.0.15` (test 10) |
 | Base emulator | gpSP 3D v0.1.7 |
 
 ROMs, Nintendo's BIOS and saves are not included. The open source BIOS replacement inherited from gpSP is supplied with its source under `bios/`.

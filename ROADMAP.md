@@ -209,3 +209,5 @@ Sonic Advance 1 and 2, Ace Combat Advance, Asterix, Downhill Jam, Pokémon Emera
 - Check Unbound Dual stable releases at startup using its own GitHub repository and project version. Show the release in settings, with installation through GitHub Releases. CIA test build 0.0.13.
 
 - Install updates from System. GitHub HTTPS certificate verification is required. The 3DSX installer validates the executable header and keeps a .bak file. The CIA installer validates the installed title ID and requires a higher package version before streaming to Application Manager. Release assets use the names unbound-dual.cia and unbound-dual.3dsx. Console validation requires a newer stable GitHub release.
+
+- Offer Update or Later before the first ROM loads (CIA 0.0.15). The startup check can be skipped with B or a tap. A skipped or failed update allows play to continue, and System retains the installation action.

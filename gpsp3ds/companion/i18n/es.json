@@ -445,5 +445,10 @@
   "Download and install the Unbound Dual release.": "Descarga e instala la versión de Unbound Dual.",
   "Downloading from GitHub...": "Descargando de GitHub...",
   "Update installed": "Actualización instalada",
-  "Reopen Unbound Dual to use the new version.": "Abre Unbound Dual otra vez para usar la nueva versión."
+  "Reopen Unbound Dual to use the new version.": "Abre Unbound Dual otra vez para usar la nueva versión.",
+  "B or tap to play now": "B o toca para jugar ya",
+  "Unbound Dual update": "Actualización de Unbound Dual",
+  "B  Later": "B  Más tarde",
+  "A  Update": "A  Actualizar",
+  "Update failed": "Error de actualización"
 }
