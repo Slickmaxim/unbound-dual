@@ -360,7 +360,6 @@
   "Auto: if a frame can't be drawn in time,\nskip drawing it so the game stays at 60.": "Si no se puede dibujar a tiempo,\nsalta un cuadro para mantener el ritmo.",
   "Stretch: if the game runs slow, slow the\nsound down instead of crackling.": "Al ralentizarse el juego, ajusta\nel audio para reducir los chasquidos.",
   "Hold: fast while the button is held.\nToggle: it turns it on/off. Button: %s": "Mantener: mientras pulsas el botón.\nAlternar: activa/desactiva. Botón: %s",
-  "Max: as fast as the 3DS can go (light\ngames: 2-4x on Old 3DS, more on New).": "Máx: tan rápido como permita la 3DS.\nLa velocidad depende del juego.",
   "This game: keep these buttons just for\nthis game (saved per game).": "Guarda la asignación de botones\nsolo para este juego.",
   "ZL / ZR: New 3DS and New 2DS XL only.\nD-pad and Circle Pad: the GBA D-pad.": "ZL/ZR: solo New 3DS y New 2DS XL.\nCruceta y Circle Pad: cruceta GBA.",
   "Turbo: presses it 15 times a second.\nD-pad and Circle Pad: the GBA D-pad.": "Turbo: pulsa 15 veces por segundo.\nCruceta y Circle Pad: cruceta GBA.",
@@ -440,5 +439,6 @@
   "Psychc": "Psíquico",
   "FIGHT": "LUCHA",
   "ELECTR": "ELÉCTRICO",
-  "PSYCHC": "PSÍQUICO"
+  "PSYCHC": "PSÍQUICO",
+  "Choose 2x, 3x or 4x. Actual speed depends\non the game and console.": "Elige 2x, 3x o 4x. La velocidad real depende\ndel juego y de la consola."
 }

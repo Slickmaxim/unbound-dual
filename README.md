@@ -48,11 +48,13 @@ A companion for **Pokémon Unbound 2.1.1.1 English and supported Spanish builds*
 
 Choose a **light or dark companion theme**, set bottom-screen artwork to **Nearest or Smooth**, and keep gpSP's display, audio, button mapping and save-state controls. Companion tabs are read-only: item use, trading, party editing and Fly are not implemented.
 
+Fast forward offers **2x, 3x and 4x**, with a small `>> 2x/3x/4x` indicator in the top-right corner while active. Hold and Toggle modes remain available.
+
 The app uses **one HOME Menu CIA**. Choose your ROM once; later launches open it automatically. Prepared ROM data is cached to speed up subsequent starts.
 
 > **Experimental build:** hardware behavior and performance depend on the console, game scene and settings. Trainer-card badges are currently unavailable. The banner uses the same game and companion captures shown above.
 
-> **Spanish preview:** this branch supports ES v1.08, ES v1.08 sinza and the supplied ES 2.1.1.1 ROM, plus an English / Español interface switch. The user confirmed all three on hardware; the latest party-artwork fix awaits console testing. See [Spanish testing notes](docs/SPANISH_SUPPORT_UK.md).
+> **Spanish preview:** this branch supports ES v1.08, ES v1.08 sinza and the supplied ES 2.1.1.1 ROM, plus an English / Español interface switch. The user confirmed all three on hardware; including the corrected party artwork. The new fast-forward indicator awaits console testing. See [Spanish testing notes](docs/SPANISH_SUPPORT_UK.md).
 
 ## Installation
 
@@ -73,7 +75,7 @@ To choose a different ROM, open **MENU → System → Unbound ROM**. A missing o
 | Supported game | Pokémon Unbound 2.1.1.1, English |
 | English ROM SHA-1 | `b4776b82a4c7915d0fadeaa27e013523f99dfd94` |
 | Application Title ID | `000400000BAC8200` |
-| Companion CIA version | `0.0.8` (ES test 3) |
+| Companion CIA version | `0.0.9` (test 4) |
 | Base emulator | gpSP 3D v0.1.7 |
 
 ROMs, Nintendo's BIOS and saves are not included. The open source BIOS replacement inherited from gpSP is supplied with its source under `bios/`.

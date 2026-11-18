@@ -47,3 +47,8 @@ if(COMPANION_TESTS)
  target_link_options(companion-spanish-test PRIVATE -Wl,--gc-sections)
  target_link_libraries(companion-spanish-test companion m)
 endif()
+
+if(COMPANION_TESTS)
+ add_executable(companion-fast-forward-test test/fast_forward_test.c)
+ target_compile_options(companion-fast-forward-test PRIVATE -UNDEBUG)
+endif()

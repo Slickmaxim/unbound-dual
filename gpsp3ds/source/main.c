@@ -1,3 +1,4 @@
+#include "fast_forward.h"
 #ifdef CP_ENABLED
 #include "../companion/localization.h"
 #else
@@ -173,9 +174,10 @@ static size_t sram_loaded;      /* size of the save file that was loaded (0 for 
 
 /* settings (saved in gpsp3d.cfg) */
 static int opt_frameskip = 1; /* 0 = off, 1 = auto (skip drawing a frame core 2 can't finish in time) */
-/* Fast forward (Y): 0 hold, 1 toggle; speed 0 Max, 1 2x, 2 3x, 3 4x */
+/* Fast forward (Y): 0 hold, 1 toggle; speed 1 2x, 2 3x, 3 4x */
 static int opt_ff_toggle = 0;
-static int opt_ff_speed = 0;
+static int opt_ff_speed = 1;
+static int ff_indicator_speed; /* atomically read by the presentation threads */
 static bool ff_on;               /* toggle mode: fast forward is on */
 static int opt_rtc;           /* real-time clock: 0 Auto (the core decides), 1 On, 2 Off */
 static int opt_update = 1;    /* check GitHub for a newer release at startup */
@@ -460,7 +462,7 @@ static void config_load(void)
       else if (!strcmp(line, "ff_toggle"))
          opt_ff_toggle = atoi(eq) ? 1 : 0;
       else if (!strcmp(line, "ff_speed"))
-         opt_ff_speed = clampi(atoi(eq), 0, 3);
+         opt_ff_speed = ff_speed_normalize(atoi(eq));
       else if (!strcmp(line, "rtc"))
          opt_rtc = clampi(atoi(eq), 0, 2);
       else if (!strcmp(line, "keys"))
@@ -821,6 +823,8 @@ static void blit_to_top(const u16 *src, unsigned pitch, gfx3dSide_t side)
          }
       }
    }
+   ff_badge_blit(fb,FW,x0,scaled ? 0 : TOP_Y0,W,scaled ? TOP_H : GBA_H,
+                 __atomic_load_n(&ff_indicator_speed,__ATOMIC_RELAXED));
 }
 
 /* ------------------------------------------------------------------ */
@@ -845,6 +849,27 @@ static int opt_smooth_fwd(void);
  * filtering. Every GBA pixel comes out the same size with only a hairline
  * of blending at its edges (plain nearest scaling to 1.5x makes some pixels
  * one screen pixel wide and others two). */
+/* Compact fast-forward badge, uploaded once; no per-frame allocation. */
+static C3D_Tex gpu_ff_tex[3];
+static bool gpu_ff_ok;
+static void gpu_ff_init(void) {
+   uint16_t* pixels=linearAlloc(32*16*sizeof(*pixels));
+   gpu_ff_ok=pixels!=NULL;
+   if (!pixels) return;
+   for (int i=0;i<3;i++) {
+      if (!C3D_TexInit(&gpu_ff_tex[i],32,16,GPU_RGB565)) { gpu_ff_ok=false;break; }
+      C3D_TexSetFilter(&gpu_ff_tex[i],GPU_NEAREST,GPU_NEAREST);
+      C3D_TexSetWrap(&gpu_ff_tex[i],GPU_CLAMP_TO_EDGE,GPU_CLAMP_TO_EDGE);
+      for (unsigned y=0;y<16;y++) for (unsigned x=0;x<32;x++)
+         pixels[y*32+x]=ff_badge_pixel(i+1,x,y);
+      GSPGPU_FlushDataCache(pixels,32*16*sizeof(*pixels));
+      /* Match the existing game/overlay texture orientation and tiling. */
+      C3D_SyncDisplayTransfer((u32*)pixels,GX_BUFFER_DIM(32,16),
+            (u32*)gpu_ff_tex[i].data,GX_BUFFER_DIM(32,16),TEX_FLAGS);
+   }
+   linearFree(pixels);
+}
+
 /* Screen effects: an 8x8 alpha pattern repeated once per GBA pixel and
  * drawn in black over the picture (rows: scanlines, rows + columns: LCD
  * grid). Texels are stored in the GPU's tiled (Morton) order. */
@@ -980,6 +1005,7 @@ static bool gpu_init(void)
    }
    if (!ctrInitGpu())
       return false;
+   gpu_ff_init();
    if (gpu_up_ok)
    {
       C3D_FrameBegin(0);
@@ -1174,6 +1200,7 @@ static void gpu_submit(void)
    const bool wide = gpu_linked_wide;
    const s16 *r = wide ? rect_wide[opt_display] : rect[opt_display];
    const s16 screen_w = wide ? TOP_W * 2 : TOP_W;
+   const int ff_speed=__atomic_load_n(&ff_indicator_speed,__ATOMIC_RELAXED);
    int uploads = gpu_staged_uploads, eyes = (stereo_mode && !wide) ? 2 : 1, e;
    /* The 3x-wide pass is retained for Sharp scaling on wide 2D output. */
    bool sharp3 = opt_smooth == 0 && opt_display != 0 && gpu_wup_ok;
@@ -1252,6 +1279,14 @@ static void gpu_submit(void)
          /* over the whole screen, at screen depth in 3D */
          ctrActivateTexture(&gpu_ov_tex);
          ctrAddRectEx(0xFFFFFFFF, 0, 0, screen_w, TOP_H, 0, 0, gpu_ov_w, gpu_ov_h, 0);
+         ctrFlushBatch();
+      }
+      if (ff_speed && gpu_ff_ok) {
+         int sx=wide ? 2 : 1;
+         ctrSetViewportSize(screen_w,TOP_H,true);
+         ctrActivateTexture(&gpu_ff_tex[ff_speed_normalize(ff_speed)-1]);
+         ctrAddRectEx(0xFFFFFFFF,screen_w-(FF_BADGE_W+4)*sx,4,
+                      FF_BADGE_W*sx,FF_BADGE_H,0,0,FF_BADGE_W,FF_BADGE_H,0);
          ctrFlushBatch();
       }
    }
@@ -3043,12 +3078,12 @@ static void menu_build(int tab)
          mrow_choice(M_SKIP, "Frame skip", opt_frameskip ? "Auto" : "Off", "Auto: if a frame can't be drawn in time,\nskip drawing it so the game stays at 60.");
          mrow_choice(M_ASTRETCH, "Audio when slow", opt_audio_stretch ? "Stretch" : "Normal", "Stretch: if the game runs slow, slow the\nsound down instead of crackling.");
          {
-            static const char *speeds[4] = { "Max", "2x", "3x", "4x" };
+            static const char *speeds[3] = { "2x", "3x", "4x" };
             static char ffh[96];
             snprintf(ffh, sizeof(ffh), ud_tr("Hold: fast while the button is held.\nToggle: it turns it on/off. Button: %s"), keys_ff_names());
             mrow_choice(M_FFMODE, "Fast forward", opt_ff_toggle ? "Toggle" : "Hold", ffh);
-            mrow_choice(M_FFSPEED, "Fast forward speed", speeds[opt_ff_speed],
-                        "Max: as fast as the 3DS can go (light\ngames: 2-4x on Old 3DS, more on New).");
+            mrow_choice(M_FFSPEED, "Fast forward speed", speeds[opt_ff_speed-1],
+                        "Choose 2x, 3x or 4x. Actual speed depends\non the game and console.");
          }
          break;
       case 4:
@@ -3144,7 +3179,7 @@ static void menu_build(int tab)
          else
             snprintf(about, sizeof(about), FRONTEND_NAME
 #ifdef CP_ENABLED
-                     " v0.2.0 ES test 3"
+                     " v0.2.0 test 4"
 #else
                      " " GPSP3D_VERSION
 #endif
@@ -3295,7 +3330,7 @@ static const char *menu_change(int id, int dir, bool has_value, int value)
          keys_save_game();
          break;
       }
-      case M_FFSPEED:  CYCLEV(opt_ff_speed, 4); break;
+      case M_FFSPEED:  opt_ff_speed = ff_speed_cycle(opt_ff_speed, dir); break;
       case M_RTC:      CYCLEV(opt_rtc, 3); break;
       case M_RTCDAYS:  STEP(opt_rtc_days, -365, 365, 1); rtc_offset_apply(); break;
       case M_RTCHOURS: STEP(opt_rtc_hours, -23, 23, 1); rtc_offset_apply(); break;
@@ -3821,6 +3856,7 @@ static void audio_stretch_update(float work_ms)
 
 static void run_game(void)
 {
+   __atomic_store_n(&ff_indicator_speed,0,__ATOMIC_RELAXED);
    u64 t_frame0 = svcGetSystemTick(), t_win0 = t_frame0;
    u64 t_core = 0, t_wait = 0, t_rest = 0;
    u64 c2_draw_us = 0, c2_copy_us = 0, c2_wait_us = 0;
@@ -3866,7 +3902,7 @@ static void run_game(void)
    while (aptMainLoop())
    {
       u64 t0, t1, t2;
-      bool drawn;
+      bool drawn, ff;
       hidScanInput();
       keys_held = hidKeysHeld();
       gyro_update();
@@ -3923,6 +3959,7 @@ static void run_game(void)
       }
       if (open_menu)
       {
+         __atomic_store_n(&ff_indicator_speed,0,__ATOMIC_RELAXED);
          frame_present_deferred();
          guide_save_pos();
          if (!game_menu())
@@ -3943,6 +3980,12 @@ static void run_game(void)
          frames = drawn_win = 0;
          continue;
       }
+
+      if (opt_ff_toggle) {
+         if (hidKeysDown() & keys_ff_mask()) ff_on=!ff_on;
+         ff=ff_on;
+      } else ff=(keys_held & keys_ff_mask())!=0;
+      __atomic_store_n(&ff_indicator_speed,ff ? opt_ff_speed : 0,__ATOMIC_RELAXED);
 
       t0 = svcGetSystemTick();
       frame_ready = false;
@@ -3975,26 +4018,12 @@ static void run_game(void)
          emu_ms_avg += (emu - emu_ms_avg) * 0.05f;
       }
 
-      /* Fast forward (Y): run extra frames without drawing them or playing
-       * their sound. They come after this frame's timing is measured, so
-       * frame skip and audio stretch see a normal frame. The loop is still
-       * paced by the sound, so N-1 extra frames make it N times as fast; at
-       * Max it fills the frame's time with as many as fit. */
+      /* N-1 extra silent frames make the selected N-times speed. */
       {
-         bool ff;
-         if (opt_ff_toggle)
-         {
-            if (hidKeysDown() & keys_ff_mask())
-               ff_on = !ff_on;
-            ff = ff_on;
-         }
-         else
-            ff = (keys_held & keys_ff_mask()) != 0;
          if (ff)
          {
-            int extra = 0, want = opt_ff_speed ? opt_ff_speed : 15;
-            u64 budget = t0 + (u64)(TICKS_PER_MS * 15.5);
-            while (extra < want && (opt_ff_speed || svcGetSystemTick() < budget))
+            int extra = 0, want = opt_ff_speed;
+            while (extra < want)
             {
                gpsp_frontend_skip = 1;
                retro_run();
@@ -4164,6 +4193,7 @@ static void run_game(void)
          hud_now = false;
       }
    }
+   __atomic_store_n(&ff_indicator_speed,0,__ATOMIC_RELAXED);
 }
 
 /* Started with a game (forwarders / HOME Menu shortcuts pass the ROM path

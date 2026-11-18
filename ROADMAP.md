@@ -198,3 +198,5 @@ Sonic Advance 1 and 2, Ace Combat Advance, Asterix, Downhill Jam, Pokémon Emera
 
 - Fixed Spanish party artwork fallback: recover exact-ROM translated small font/status sheets, validate required slot/backdrop resources when reading existing caches, and automatically rebuild incomplete caches. Real-ROM regression checks require the native party renderer and cover valid-but-incomplete cache repair. CIA test version 0.0.8.
 - Party art lifecycle: reset owning slot/backdrop/type-sheet pointers before the allocation pool is freed, avoiding stale image frees on ROM reopen; integration checks redraw party/map after cache repair and warm reopen.
+
+- Fast forward: removed Max, default/migrate to 2x while preserving stored 2x/3x/4x values; retained Hold/Toggle. Added an allocation-free per-frame top-right speed badge for CPU/GPU, 400/800px and stereo output, independent of bottom-screen mode and filters. GPU rectangle clipping now follows the current viewport so the 800px badge is not culled. Host checks cover compatibility, cycling and rotated framebuffer badge bounds/removal. CIA test version 0.0.9; console validation pending.
