@@ -10,6 +10,7 @@
 #include "vendor/pd_ui_internal.h"
 #include "vendor/pd_map.h"
 #include "vendor/pd_tables.h"
+#include "vendor/pd_unbound_es.h"
 #include "vendor/pd_party_art.h"
 #include <string.h>
 #include <stdio.h>
@@ -59,8 +60,8 @@ bool companion_load(const uint8_t header[192],size_t size,cp_read_fn read,
     game.romSize=size;game.romRead=read;game.romAt=span;game.romCtx=ctx;
     pd_game_identify(&game);
     if(strcmp(game.sha1,"b4776b82a4c7915d0fadeaa27e013523f99dfd94") &&
-       strcmp(game.sha1,"d5b312465c0a95bcb6428bd61cc170994a2a65fc")){
-        error="Requires Unbound 2.1.1.1 EN or ES v1.08";return false;
+       !pd_unbound_es_profile(game.sha1)){
+        error="Requires a supported Unbound EN/ES ROM";return false;
     }
     if(!game.cfg){error="Unbound layout unavailable";return false;}
     S=cp_calloc(1,sizeof(*S));if(!S){error="Not enough memory for Companion";return false;}

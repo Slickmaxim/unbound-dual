@@ -7,6 +7,7 @@
 
 #include "pd_smol.h"
 #include "pd_games.h"
+#include "pd_unbound_es.h"
 
 // --- finding blobs (RomArt.find) ---
 
@@ -179,12 +180,13 @@ void pd_romart_scan(const struct pd_game* g) {
     cp_progress("Finding graphics",0,0);
     find_blobs(g, sigs, n, decoded);
     for (int i = 0; i < n; i++) found[wanted[i]] = decoded[i];
-    if (!strcmp(g->sha1, "d5b312465c0a95bcb6428bd61cc170994a2a65fc")) {
-        // ES v1.08 redraws the Latin normal font. Read it from this exact ROM,
+    const struct pd_unbound_es_profile* profile = pd_unbound_es_profile(g->sha1);
+    if (profile) {
+        // Spanish patches redraw the Latin normal font. Read from the exact ROM,
         // validating the translated bytes instead of expecting English CRCs.
         const struct { enum pd_blob id; uint32_t offset, crc; } local[] = {
-            {PD_FR_FONT_NORMAL, 0x081F3100, 0xF95367FD},
-            {PD_FR_FONT_NORMAL_WIDTHS, 0x081FB100, 0x51A98C02}
+            {PD_FR_FONT_NORMAL, 0x081F3100, profile->normalFontCRC},
+            {PD_FR_FONT_NORMAL_WIDTHS, 0x081FB100, profile->normalWidthsCRC}
         };
         for (unsigned i=0;i<sizeof(local)/sizeof(local[0]);i++) {
             enum pd_blob id=local[i].id;

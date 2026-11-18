@@ -323,7 +323,7 @@ static const struct translation translations[] = {
  {"Reading cache","Leyendo caché"},
  {"Real-time clock","Reloj en tiempo real"},
  {"Relaxed","Plácida"},
- {"Requires Unbound 2.1.1.1 EN or ES v1.08","Requiere Unbound 2.1.1.1 EN o ES v1.08"},
+ {"Requires a supported Unbound EN/ES ROM","Requiere una ROM Unbound EN/ES compatible"},
  {"Reset 3D","Restablecer 3D"},
  {"Reset buttons","Restablecer botones"},
  {"Reset colours","Restablecer colores"},

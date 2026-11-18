@@ -193,3 +193,5 @@ Sonic Advance 1 and 2, Ace Combat Advance, Asterix, Downhill Jam, Pokémon Emera
 - 🧪 slickmaxim: rename companion to Unbound Dual in docs, banners, HOME Menu metadata, artifact names and releases; CIA 0.0.5 retains Title ID and existing save/config paths.
 
 - 🧪 slickmaxim: exact-hash ES v1.08 support with relocated tables/Z-A forms/stones; independent English/Español interface catalogue, accented fonts, Spanish ROM font validation and optional real-ROM integration check. Hardware Spanish-save validation pending.
+
+- 🧪 Spanish follow-up: exact-hash profiles for v1.08 sinza and ES 2.1.1.1, separate original-size tables/natures and font CRCs. Real-ROM host checks cover all three ES builds with English overworld/battle RAM fixtures and per-ROM warm caches. User confirmed v1.08 and language switching on console; new variants still require hardware/save checks. CIA test version 0.0.7.

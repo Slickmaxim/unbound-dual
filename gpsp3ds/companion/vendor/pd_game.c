@@ -10,6 +10,8 @@
 #include "pd_games.h"
 #include "pd_randomized.h"
 #include "pd_sha1.h"
+#include "pd_unbound_es.h"
+#include "pd_tables.h"
 
 // The configs come from gamedata/ (gamedata/targets/3ds.toml picks the fields
 // this port reads), generated with the app's: `make gamedata`.
@@ -214,7 +216,7 @@ void pd_game_detect(struct pd_game* g, const uint8_t* header, size_t romSize) {
     (void) romSize;
     g->kind = PD_GAME_FIRERED;
     g->title = "Pokémon Unbound";
-    g->unsupported = "Unbound 2.1.1.1 EN or ES v1.08 required";
+    g->unsupported = "Supported Unbound EN/ES ROM required";
 #else
 
     if (!strcmp(g->code, "BPRE") || !strcmp(g->code, "BPGE")) {
@@ -651,7 +653,7 @@ static void identify(struct pd_game* g) {
     g->cfg = NULL;
     g->guide = PD_GUIDE_NONE;
     g->retail = g->randomized = false;
-    g->unsupported = "Unbound 2.1.1.1 EN or ES v1.08 required";
+    g->unsupported = "Supported Unbound EN/ES ROM required";
     if (!g->rom) return;
     extern bool cp_identity_sha(size_t,char[41]);
     extern void cp_identity_commit(const char[41]);
@@ -675,27 +677,29 @@ identified:
     } else if (!strcmp(g->sha1, "0ce2a880aa097f1dce4e1db8ee513d0e82d15859")) {
         g->cfg = &PD_CONFIG_UNBOUND_FR;
         g->language = 'F';
-    } else if (!strcmp(g->sha1, "d5b312465c0a95bcb6428bd61cc170994a2a65fc")) {
-        // ES v1.08 retains legacy tables; use the actively referenced relocated
-        // tables, including its additional Z-A forms and Mega Stones.
-        extern const struct pd_text pd_text_unbound_es;
-        static struct pd_config es;
-        static const struct pd_item_descs items = {
-            .base=0x095FBC90, .stride=44, .descOff=20, .idOff=14
-        };
-        es = PD_CONFIG_UNBOUND;
-        es.text = &pd_text_unbound_es;
-        es.itemDescs = &items;
-        es.speciesInfo = 0x0963BC90;
-        es.speciesCount = 1314;
-        es.speciesToNational = 0x09FF7C70;
-        es.frontPics = 0x09FE6C64;
-        es.palettes = es.dexPalettes = 0x09FEBE84;
-        es.learnsets = 0x09FF10A4;
-        es.monIconTable = 0x09FF252C;
-        es.itemIconTable = 0x096040BC;
-        g->cfg = &es;
-        g->language = 'S';
+    } else {
+        const struct pd_unbound_es_profile* profile = pd_unbound_es_profile(g->sha1);
+        if (profile) {
+            // Each exact ROM selects its own live tables and translated data.
+            static struct pd_config es;
+            static struct pd_item_descs items;
+            items = (struct pd_item_descs){
+                .base=profile->itemDescs, .stride=44, .descOff=20, .idOff=14
+            };
+            es = PD_CONFIG_UNBOUND;
+            es.text = profile->text;
+            es.itemDescs = &items;
+            es.speciesInfo = profile->speciesInfo;
+            es.speciesCount = profile->text->speciesCount;
+            es.speciesToNational = profile->speciesToNational;
+            es.frontPics = profile->frontPics;
+            es.palettes = es.dexPalettes = profile->palettes;
+            es.learnsets = profile->learnsets;
+            es.monIconTable = profile->monIconTable;
+            es.itemIconTable = profile->itemIconTable;
+            g->cfg = &es;
+            g->language = 'S';
+        }
     }
     if (g->cfg) {
         g->kind = PD_GAME_FIRERED;
@@ -790,13 +794,14 @@ identified:
 
 // The app's extras for a ROM (its look, its PC's moves), by SHA-1: pd_games_gen.c's entries are sorted by it.
 const struct pd_game_entry* pd_game_entry_for(const char* sha1) {
-    if (!strcmp(sha1, "d5b312465c0a95bcb6428bd61cc170994a2a65fc")) {
+    const struct pd_unbound_es_profile* profile = pd_unbound_es_profile(sha1);
+    if (profile) {
         static struct pd_game_entry es;
         const struct pd_game_entry* en = pd_game_entry_for("b4776b82a4c7915d0fadeaa27e013523f99dfd94");
         if (!en) return NULL;
         es = *en;
-        es.sha1 = "d5b312465c0a95bcb6428bd61cc170994a2a65fc";
-        es.file = "Unbound ES v1.08";
+        es.sha1 = profile->sha1;
+        es.file = profile->label;
         es.language = 'S';
         return &es;
     }

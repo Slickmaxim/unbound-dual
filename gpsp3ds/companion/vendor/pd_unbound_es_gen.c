@@ -1,4 +1,4 @@
-// Generated from the user-provided Unbound ES v1.08 ROM by tools/gen_unbound_es.py.
+// Generated from user-provided Unbound ES v1.08 by tools/gen_unbound_es.py.
 // SHA-1: d5b312465c0a95bcb6428bd61cc170994a2a65fc; display text/metadata only, no graphics or ROM binary.
 #include "pd_tables.h"
 static const char* const es_species[1314] = {
@@ -5745,7 +5745,7 @@ static const uint8_t es_types[1314][2] = {
  { 8, 23 },
  { 8, 23 },
 };
-const char* const pd_unbound_es_natures[25] = {
+static const char* const es_natures[25] = {
  "Fuerte",
  "Huraña",
  "Audaz",
@@ -5933,7 +5933,8 @@ static const char* const es_type_names[24] = {
 };
 const struct pd_text pd_text_unbound_es = {
 .species=es_species,.speciesCount=1314,.items=es_items,.itemsCount=767,
-.moves=es_moves,.movesCount=923,.speciesTypes=es_types,.speciesTypesCount=1314,
+.moves=es_moves,.movesCount=923,.speciesTypes=es_types,
+.speciesTypesCount=1314,.genderRatios=es_gender,.genderRatiosCount=1314,
 .typeNames=es_type_names,.typeNamesCount=24,.typeChart=es_chart,.typeChartCount=131,
-.genderRatios=es_gender,.genderRatiosCount=1314,.mapsecs=es_mapsecs,.mapsecsCount=197,.mapsecsRom=true,
+.mapsecs=es_mapsecs,.mapsecsCount=197,.mapsecsRom=true,.natures=es_natures,
 };

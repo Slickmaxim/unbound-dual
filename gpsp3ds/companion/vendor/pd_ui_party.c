@@ -1091,8 +1091,8 @@ static void summary_stats_left(struct pd_canvas* c, const struct pd_summary_view
         y += 15;
     }
     if (st && st->hasNature && st->nature >= 0 && st->nature < pd_nature_names_count && y + 15 <= bottom) {
-        extern const char* const pd_unbound_es_natures[25];
-        const char* nature = v->game && v->game->language == 'S' && st->nature < 25 ? pd_unbound_es_natures[st->nature] : ud_tr(pd_nature_names[st->nature]);
+        const struct pd_text* text = v->game && v->game->cfg ? v->game->cfg->text : NULL;
+        const char* nature = text && text->natures && st->nature < 25 ? text->natures[st->nature] : ud_tr(pd_nature_names[st->nature]);
         pd_text_fit(c, 13, y, w, nature, PD_LABEL, PD_LABEL_SHADOW);
         y += 15;
     }

@@ -261,7 +261,7 @@
   "No learnset data.": "Sin datos de aprendizaje.",
   "It will hatch in time.": "Nacerá cuando llegue el momento.",
   "Waiting for game data...": "Esperando datos del juego...",
-  "Requires Unbound 2.1.1.1 EN or ES v1.08": "Requiere Unbound 2.1.1.1 EN o ES v1.08",
+  "Requires a supported Unbound EN/ES ROM": "Requiere una ROM Unbound EN/ES compatible",
   "Unbound layout unavailable": "Estructura de Unbound no disponible",
   "Not enough memory for Companion": "Memoria insuficiente para el companion",
   "Companion is not loaded": "Companion no cargado",
