@@ -116,6 +116,8 @@ extern u32 instruction_count;
 void execute_arm(u32 cycles);
 /* Bounded interpreter transaction, called only between emulated frames. */
 bool gpsp_guest_idle(void);
+void gpsp_guest_set_wait_hook(void (*hook)(void));
+bool gpsp_guest_poll_wait(void);
 bool gpsp_guest_begin(void);
 bool gpsp_guest_call(u32 thumb_address, const u32 args[4], u32 *result, bool query);
 bool gpsp_guest_call_stack(u32 address, const u32 args[7], u32 *result);

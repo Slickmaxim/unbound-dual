@@ -3663,12 +3663,28 @@ void execute_arm(u32 cycles)
   execute_arm_internal(cycles, false);
 }
 
+static void (*guest_wait_hook)(void);
+
+void gpsp_guest_set_wait_hook(void (*hook)(void))
+{
+  guest_wait_hook = hook;
+}
+
 bool gpsp_guest_idle(void)
 {
-  // Only call from the main context at the game's hardware wait, never
-  // while an IRQ or in-progress gameplay routine is using the stack.
-  return (reg[CPU_MODE] == MODE_SYSTEM || reg[CPU_MODE] == MODE_USER) &&
-    reg[CPU_HALT_STATE] == CPU_HALT;
+  // The audited Unbound main loop calls SWI Halt from WaitForVBlank.
+  // With the bundled BIOS the CPU is in System mode inside that SWI.
+  return reg[CPU_MODE] == MODE_SYSTEM && reg[CPU_HALT_STATE] == CPU_HALT &&
+    reg[REG_PC] < 0x4000 && REG_MODE(MODE_SUPERVISOR)[6] == 0x0800089c;
+}
+
+bool gpsp_guest_poll_wait(void)
+{
+  if (!guest_wait_hook || !gpsp_guest_idle()) return false;
+  void (*hook)(void) = guest_wait_hook;
+  guest_wait_hook = NULL;
+  hook();
+  return true;
 }
 
 bool gpsp_guest_begin(void)

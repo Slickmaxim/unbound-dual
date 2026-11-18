@@ -34,6 +34,7 @@ struct companion_guest {
     bool (*write)(uint32_t, uint32_t, unsigned);
 };
 void companion_item_bind(const struct companion_guest* guest);
-void companion_item_tick(void);
+bool companion_item_tick(void);
+void companion_item_at_wait(void);
 void companion_item_cancel(void);
 #endif

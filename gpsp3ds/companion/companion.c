@@ -65,7 +65,10 @@ static bool item_profile_matches(const struct pd_game* g)
 {
     const struct pd_config* cfg=g->cfg;
     const struct pd_party_fns* party=cfg->partyFns;
+    uint8_t wait[24];
     return party && cfg->itemDescs && cfg->itemDescs->stride==44 &&
+        pd_rom_read(g,0x08000890,wait,sizeof(wait)) &&
+        pd_crc32(wait,sizeof(wait))==0xf11a078c &&
         item_crc(g,cfg->fieldCheckBag,cfg->fieldCrcs[2]) &&
         item_crc(g,cfg->fieldRemoveBag,cfg->fieldCrcs[3]) &&
         item_crc(g,cfg->fieldLocked,cfg->fieldCrcs[4]) &&
@@ -181,14 +184,25 @@ static void tm_open(int id)
     item_result(message);
 }
 
-void companion_item_tick(void)
+bool companion_item_tick(void)
 {
-    if(!S || !item_guest) return;
+    if(!S || !item_guest) return false;
     if(S->item_notice_frames && !--S->item_notice_frames){
         S->item_notice=NULL;
         companion_invalidate();
     }
-    if(!S->item_request.frames) return;
+    if(!S->item_request.frames) return false;
+    if(!--S->item_request.frames){
+        item_result("Try again on the field.");
+        return false;
+    }
+    return true;
+}
+
+void companion_item_at_wait(void)
+{
+    if(!S || !item_guest || !S->item_request.frames || !item_guest->idle())
+        return;
     const struct pd_config* cfg=S->game.cfg;
     const struct pd_party_fns* p=cfg->partyFns;
     int id=S->item_request.item, slot=S->item_request.slot, move=S->item_request.move;
@@ -200,11 +214,7 @@ void companion_item_tick(void)
         item_result("Use items in the field.");return;
     }
     if(kind==3){
-        if(!item_guest->idle() || !item_guest->begin()){
-            if(!--S->item_request.frames) item_result("Try again on the field.");
-            return;
-        }
-        tm_open(id);
+        if(item_guest->begin()) tm_open(id);
         return;
     }
     uint32_t mon=p->party+100u*slot;
@@ -215,10 +225,7 @@ void companion_item_tick(void)
        (kind==2 && live.moves[move]!=S->target_moves[slot][move])){
         item_result("The party changed.");return;
     }
-    if(!item_guest->idle() || !item_guest->begin()){
-        if(!--S->item_request.frames) item_result("Try again on the field.");
-        return;
-    }
+    if(!item_guest->begin()) return;
     uint32_t result;
     const char* message="Item use failed.";
     bool commit=false;

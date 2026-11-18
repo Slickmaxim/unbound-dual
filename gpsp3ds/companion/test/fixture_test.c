@@ -78,9 +78,11 @@ static void check_bag_item_touch(void){
  companion_draw(output);tap_id(HIT_BAG_USE);companion_draw(output);
  tap_id(HIT_ITEM_SLOT);
  assert(S->item_request.frames&&guest_calls==0);
- companion_item_tick();
+ assert(companion_item_tick());
+ assert(guest_calls==0);
+ companion_item_at_wait();
  assert(!S->item_request.frames&&guest_committed&&guest_calls==5);
- companion_item_tick();assert(guest_calls==5);
+ assert(!companion_item_tick());companion_item_at_wait();assert(guest_calls==5);
  companion_item_cancel();S->ui.bagSelected=-1;S->game.romRead=NULL;
  companion_item_bind(NULL);
  puts("Bag: touch, cancel, single queued application and commit passed");

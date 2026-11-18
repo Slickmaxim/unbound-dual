@@ -170,6 +170,7 @@ static char old_save_dir[512];  /* where saves went before save_dir/save_ext wer
 
 #ifdef CP_ENABLED
 extern bool gpsp_guest_idle(void);
+extern void gpsp_guest_set_wait_hook(void (*hook)(void));
 extern bool gpsp_guest_begin(void);
 extern bool gpsp_guest_call(uint32_t,const uint32_t[4],uint32_t*,bool);
 extern void gpsp_guest_end(bool);
@@ -3276,7 +3277,7 @@ static void menu_build(int tab)
          else
             snprintf(about, sizeof(about), FRONTEND_NAME
 #ifdef CP_ENABLED
-                     " v0.2.0 test 12"
+                     " v0.2.0 test 13"
 #else
                      " " GPSP3D_VERSION
 #endif
@@ -4098,7 +4099,8 @@ static void run_game(void)
 
       t0 = svcGetSystemTick();
 #ifdef CP_ENABLED
-      companion_item_tick();
+      if (companion_item_tick())
+         gpsp_guest_set_wait_hook(companion_item_at_wait);
 #endif
       frame_ready = false;
       /* not while core 2 may still be drawing a deferred frame */
@@ -4110,6 +4112,9 @@ static void run_game(void)
       }
       drawn = frame_skip_plan();
       retro_run();
+#ifdef CP_ENABLED
+      gpsp_guest_set_wait_hook(NULL);
+#endif
       if (skip_phase == 0)   /* after the last skipped frame: show the drawn one */
          frame_present_deferred();
       t1 = svcGetSystemTick();

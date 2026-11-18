@@ -5,10 +5,14 @@
 #include <stdio.h>
 #include <string.h>
 
-extern uint32_t reg[64];
+extern uint32_t reg[64], reg_mode[7][7];
 extern unsigned char ewram[];
 extern unsigned char *memory_map_read[];
 bool gpsp_guest_begin(void);
+void gpsp_guest_set_wait_hook(void (*hook)(void));
+bool gpsp_guest_poll_wait(void);
+static int wait_calls;
+static void on_wait(void) { ++wait_calls; }
 bool gpsp_guest_call(uint32_t address, const uint32_t args[4], uint32_t *out, bool query);
 void gpsp_guest_end(bool commit);
 
@@ -43,5 +47,17 @@ int main(void)
     assert(!gpsp_guest_call(0x08000000,args,&result,false));
     gpsp_guest_end(false);
     assert(!memcmp(saved,reg,sizeof(saved)));
-    puts("Guest calls: result, context restoration, query rollback, timeout rollback, commit, and I/O rejection passed");
+    gpsp_guest_set_wait_hook(on_wait);
+    reg[18] = 1; // HALT alone is insufficient.
+    assert(!gpsp_guest_poll_wait());
+    reg[15] = 0x200; // BIOS code, but waiting from an unrelated SWI.
+    reg_mode[3][6] = 0x08005000;
+    assert(!gpsp_guest_poll_wait());
+    reg_mode[3][6] = 0x0800089c;
+    reg[17] = 0x11; // IRQ mode must never run the hook.
+    assert(!gpsp_guest_poll_wait());
+    reg[17] = 0x10;
+    assert(gpsp_guest_poll_wait() && wait_calls == 1);
+    assert(!gpsp_guest_poll_wait() && wait_calls == 1);
+    puts("Guest calls: result, context restoration, query rollback, timeout rollback, commit, I/O rejection, and verified one-shot BIOS wait passed");
 }
