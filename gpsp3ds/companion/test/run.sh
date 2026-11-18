@@ -13,6 +13,7 @@ for style in pokedaisy; do
     "$build/companion-fixture-test" "$fixtures" "$build/shots"
     "$build/companion-adapter-test" "$build/synthetic-map.gba"
     "$build/companion-filter-test"
+    "$build/companion-localization-test"
     "$build/companion-fast-forward-test"
     "$build/companion-bag-refresh-test"
 done

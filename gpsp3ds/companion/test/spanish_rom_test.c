@@ -107,6 +107,11 @@ int main(int argc,char**argv){
  S->ui.tab=PD_TAB_MAP;S->dirty=true;companion_draw(frame);screenshot(argv[3],"spanish-map");
  S->ui.tab=PD_TAB_CARD;S->dirty=true;companion_draw(frame);screenshot(argv[3],"spanish-card");
  uint32_t card[PD_CARD_W*PD_CARD_H];struct pd_card_info info;assert(pd_card_info(&S->game,&S->snap,&info));assert(pd_card_render(&S->game,&info,false,true,false,card));
+ static uint32_t russian_card[PD_CARD_W*PD_CARD_H];
+ ud_language_set(UD_RUSSIAN);
+ assert(pd_card_render(&S->game,&info,false,true,false,russian_card));
+ assert(memcmp(card,russian_card,sizeof(card)));
+ assert(!strcmp(pd_item_name(&S->game,13),"Poción"));
  ud_language_set(0);assert(!strcmp(ud_tr("PARTY"),"PARTY"));
  printf("%s: exact identity, active tables, moves/items, accented glyphs, baseline RAM decode, localized UI; %zu bytes\n",profile->label,companion_memory());
  // Battle fixture is also from English; verify common RAM decoding without writes.

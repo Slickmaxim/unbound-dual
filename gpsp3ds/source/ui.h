@@ -33,7 +33,7 @@ void ui_set_clip_y(int y0, int y1);
 
 int  ui_text_w(const ui_font *f, const char *s);
 /* UTF-8 text: the next character (moves *s on), and its glyph (Latin-1 and
- * a few look-alikes, else '?') */
+ * Cyrillic, or else '?') */
 unsigned ui_utf8_next(const char **s);
 const ui_glyph *ui_glyph_of(const ui_font *f, unsigned c);
 /* draws s with its top-left at (x, y); clips to max_w pixels with "..." if

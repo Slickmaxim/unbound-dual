@@ -59,10 +59,10 @@ uint32_t ui_type_color(int type) {
 }
 
 int ui_type_badge(struct pd_canvas* c, int x, int y, int type) {
-    char text[12];
+    char text[32];
     const char* name = pd_type_name(ui_game, type);
     int n = 0;
-    for (; name[n] && n < 11; n++) text[n] = name[n] >= 'a' && name[n] <= 'z' ? (char) (name[n] - 32) : name[n];
+    for (; n < (int)sizeof(text) - 1 && name[n]; n++) text[n] = name[n] >= 'a' && name[n] <= 'z' ? (char) (name[n] - 32) : name[n];
     text[n] = 0;
     // The game's own tag where its ROM has the sheet (English FireRed / Emerald engines), else the drawn badge.
     const uint32_t* tags = pd_type_tags(ui_game);

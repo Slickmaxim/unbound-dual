@@ -1108,7 +1108,7 @@ static void summary_stats_left(struct pd_canvas* c, const struct pd_summary_view
         y += 15;
     }
     if (v->friendship >= 0 && y + 15 <= bottom) {
-        char line[24];
+        char line[48];
         snprintf(line, sizeof line, ud_tr("FRIENDSHIP %d"), v->friendship);
         pd_text_fit(c, 13, y, w, line, PD_LABEL, PD_LABEL_SHADOW);
         y += 15;
@@ -1157,7 +1157,7 @@ static void summary_stats_right(struct pd_canvas* c, const struct pd_summary_vie
         }
     }
     int y = top + (n + 1) * row;
-    char text[52];
+    char text[80];
     if (s->hasEvs) {
         snprintf(text, sizeof text, "EV TOTAL  %d", total);
         pd_text_right(c, ev, y, text, PD_MUTED, PD_MUTED_SHADOW);

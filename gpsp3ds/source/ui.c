@@ -203,6 +203,10 @@ const ui_glyph *ui_glyph_of(const ui_font *f, unsigned c)
       return &f->g[c - 32];
    if (c >= 160 && c <= 255)
       return &f->g[95 + c - 160];
+   if (c == 0x401) return &f->g[191]; /* Ё */
+   if (c >= 0x410 && c <= 0x44F) return &f->g[192 + c - 0x410];
+   if (c == 0x451) return &f->g[256]; /* ё */
+   if (c == 0x2116) return &f->g[257]; /* № */
    return &f->g['?' - 32];
 }
 

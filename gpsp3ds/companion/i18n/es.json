@@ -383,7 +383,6 @@
   "GPU display is now Off (menu: System >\nGPU display). The CPU shows the frames.": "GPU desactivada (Sistema > GPU).\nLa CPU muestra los cuadros.",
   "Fast emulation needs Luma3DS (kernel\naccess). Games will run slowly.": "Emulación rápida requiere Luma3DS.\nSin acceso al kernel irá más lento.",
   "The file may be damaged or not a GBA\ngame.": "El archivo puede estar dañado\no no ser un juego de GBA.",
-  "English / Español. Applies to menus and\ncompanion tabs; the game keeps its language.": "English / Español para menús y pestañas.\nEl juego conserva su propio idioma.",
   "Atk %d  Def %d  Spd %d": "Atq %d  Def %d  Vel %d",
   "SpA %d  SpD %d": "AtE %d  DeE %d",
   "emulate %.1f ms   show %.1f ms": "emular %.1f ms   mostrar %.1f ms",
@@ -458,5 +457,7 @@
   "No items left.": "No quedan objetos.",
   "It would have no effect.": "No tendría efecto.",
   "Item used.": "Objeto usado.",
-  "Choose a Pokémon in the game.": "Elige un Pokémon en el juego."
+  "Choose a Pokémon in the game.": "Elige un Pokémon en el juego.",
+  "English / Español / Русский. Applies to menus;\nthe game keeps its language.": "English / Español / Русский.\nEl juego conserva su propio idioma.",
+  "Requires a supported Unbound EN/ES/RU ROM": "Requiere una ROM Unbound EN/ES/RU compatible"
 }

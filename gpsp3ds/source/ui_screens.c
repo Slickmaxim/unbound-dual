@@ -42,13 +42,13 @@ static void draw_help(int y, int h, const char *help, const char *note, int note
    }
    if (help)
    {
-      char line[96];
+      char line[224];
       const char *nl = strchr(help, '\n');
       int ly = y + 4;
       if (nl)
       {
          int n = (int)(nl - help);
-         if (n > 95) n = 95;
+         if (n >= (int)sizeof(line)) n = sizeof(line) - 1;
          memcpy(line, help, n);
          line[n] = 0;
          ui_text(&ui_font_small, 10, ly, line, C_DIM, UI_W - 20);
@@ -75,9 +75,14 @@ static void draw_choice(int rx, int y, int h, const char *value, int sel, int di
    ui_arrow(rx - 12, cy, 4, 1, ac);
    {
       const ui_font *f = &ui_font_bold;
-      int tw = ui_text_w(f, value);
       int maxw = CHOICE_W - 40;
-      if (tw > maxw) tw = maxw;
+      int tw = ui_text_w(f, value);
+      if (tw > maxw)
+      {
+         f = &ui_font_small;
+         tw = ui_text_w(f, value);
+         if (tw > maxw) tw = maxw;
+      }
       ui_text_vc(f, x0 + (CHOICE_W - tw) / 2, y, h, value, disabled ? C_DIM : C_TEXT, maxw);
    }
 }
@@ -387,6 +392,7 @@ void scr_hud(const ui_hud *h)
 void scr_message(const char *title, const char *body, const char *hint)
 {
    int y = 60, lines = 0;
+   body = ud_tr(body);
    const char *p;
    ui_clear(C_BG);
    for (p = body; p && *p; p++)
@@ -396,19 +402,19 @@ void scr_message(const char *title, const char *body, const char *hint)
    y = 84;
    if (body)
    {
-      char line[128];
+      char line[224];
       const char *s = body;
       while (*s)
       {
          const char *nl = strchr(s, '\n');
          int n = nl ? (int)(nl - s) : (int)strlen(s);
-         if (n > 127) n = 127;
+         if (n >= (int)sizeof(line)) n = sizeof(line) - 1;
          memcpy(line, s, n);
          line[n] = 0;
          ui_text(&ui_font_body, 32, y, line, C_DIM, UI_W - 64);
          y += 17;
-         s += n + (nl ? 1 : 0);
          if (!nl) break;
+         s = nl + 1;
       }
    }
    if (hint)

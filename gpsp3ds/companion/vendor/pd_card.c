@@ -1,5 +1,6 @@
 #include "pd_card.h"
 #include "pd_unbound_ru.h"
+#include "pd_font.h"
 #include "../localization.h"
 
 #include <stdio.h>
@@ -443,11 +444,11 @@ static void pic(uint32_t* img, const uint8_t* tiles, const uint32_t* pal, const 
 // A string in the games' encoding.
 struct str {
     int n;
-    uint8_t c[48];
+    uint16_t c[48];
 };
 
 static void add(struct str* s, int ch) {
-    if (s->n < (int) sizeof(s->c)) s->c[s->n++] = (uint8_t) ch;
+    if (s->n < (int) (sizeof(s->c) / sizeof(*s->c))) s->c[s->n++] = (uint16_t) ch;
 }
 
 static void cat(struct str* s, const struct str* t) {
@@ -461,9 +462,9 @@ static struct str enc(const char* text) {
     for (const unsigned char* p = (const unsigned char*) text; *p; p++) {
         int ch = *p;
         if ((ch == 0xD0 || ch == 0xD1) && p[1]) {
-            uint8_t code = pd_ru_glyph_code((ch & 0x1F) << 6 | (p[1] & 0x3F));
-            if (code) {
-                add(&s, code);
+            unsigned cp = (ch & 0x1F) << 6 | (p[1] & 0x3F);
+            if (pd_ru_glyph_code(cp)) {
+                add(&s, cp);
                 ++p;
                 continue;
             }
@@ -527,7 +528,11 @@ static struct str digits(int value, int n, int mode, int pad) {
 
 static int width(const struct art* a, const struct blobs* b, const struct str* s) {
     int w = 0;
-    for (int i = 0; i < s->n; i++) w += a->d[b->widths][s->c[i]];
+    for (int i = 0; i < s->n; i++) {
+        unsigned code = s->c[i];
+        if (code > 255 && a->cyrillic) code = pd_ru_glyph_code(code);
+        w += code > 255 ? pd_font_glyph(code)->advance : a->d[b->widths][code];
+    }
     return w;
 }
 
@@ -537,6 +542,26 @@ static void print(const struct art* a, const struct blobs* b, int x0, int y, con
     int x = x0;
     for (int i = 0; i < s->n; i++) {
         int g = s->c[i];
+        if (g > 255 && a->cyrillic) g = pd_ru_glyph_code(g);
+        if (g > 255) {
+            const struct pd_glyph* glyph = pd_font_glyph(g);
+            for (int py = 0; py < a->lay->glyphH && py < PD_FONT_HEIGHT; ++py) {
+                int wy = y + py;
+                if (wy < 0 || wy >= 144) continue;
+                unsigned ink = glyph->rows[py];
+                unsigned shade = py ? (unsigned) glyph->rows[py - 1] << 1 : 0;
+                for (int px = 0; px < 16; ++px) {
+                    int wx = x + px;
+                    if (wx < 0 || wx >= a->lay->textW) continue;
+                    unsigned mask = 1u << px;
+                    uint32_t* pixel = &a->img[(8 + wy) * PD_CARD_W + 8 + wx];
+                    if (ink & mask) *pixel = fg;
+                    else if (shade & mask) *pixel = shadow;
+                }
+            }
+            x += glyph->advance;
+            continue;
+        }
         int w = a->d[b->widths][g];
         int cols = a->lay->cols == COLS_NARROW ? (w <= 8 ? 8 : 16) : a->lay->cols == COLS_WIDTH ? (w < 16 ? w : 16) : 16;
         for (int py = 0; py < a->lay->glyphH; py++) {

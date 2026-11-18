@@ -274,7 +274,10 @@ static void description(struct pd_ui* ui, struct pd_canvas* c, const struct pd_g
     int x = MARGIN, w = c->w - 2 * MARGIN, h = c->h - y - MARGIN;
     int f = pd_layered_box(c, x, y, w, h, 3, p->desc, p->descLayers, p->descFill);
     bool use = host && host->itemCanUse && host->itemCanUse(id), give = host && host->itemCanGive && host->itemCanGive(id);
-    int bw = 44, room = use || give ? bw + 6 : 0;
+    int bw = 44;
+    if (use && pd_text_width("USE") + 8 > bw) bw = pd_text_width("USE") + 8;
+    if (give && pd_text_width("GIVE") + 8 > bw) bw = pd_text_width("GIVE") + 8;
+    int room = use || give ? bw + 6 : 0;
     const char* text = ui->bagSource ? ui->bagSource->name(ui->bagSource->ctx, id) : pd_item_description(g, id);
     if (!*text) text = pd_item_name(g, id);
     int tx = x + f + 6, tw = w - 2 * (f + 6) - room;
@@ -296,7 +299,7 @@ static void item_picker(struct pd_ui* ui, struct pd_canvas* c, const struct pd_g
     if (top.cy1 > y) top.cy1 = y;
     ui_item_grid(ui, &top, g, s);
     int x = MARGIN, w = c->w - 2 * MARGIN;
-    char text[64];
+    char text[160];
     snprintf(text, sizeof(text), ud_tr(ui->itemGive ? "Give %s to which POKéMON?" : "Use %s on which POKéMON?"), pd_item_name(g, ui->itemId));
     int f = pd_title_box(c, x, y, w, barH, PD_TITLE_FILL);
     pd_text_fit(c, x + f + 5, pd_text_y(y, barH), w - 84, text, PD_TITLE_TEXT, PD_TITLE_SHADOW);

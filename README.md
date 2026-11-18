@@ -56,7 +56,7 @@ The app uses **one HOME Menu CIA**. Choose your ROM once; later launches open it
 
 > **Experimental build:** hardware behavior and performance depend on the console, game scene and settings. Trainer-card badges are currently unavailable. The banner uses the same game and companion captures shown above.
 
-> **Spanish preview:** this branch supports ES v1.08, ES v1.08 sinza and the supplied ES 2.1.1.1 ROM, plus an English / Español interface switch. The user confirmed all three on hardware; including the corrected party artwork. The fast-forward indicator is also confirmed. Partial Bag redraws await console testing. See [Spanish testing notes](docs/SPANISH_SUPPORT_UK.md).
+> **Spanish preview:** this branch supports ES v1.08, ES v1.08 sinza and the supplied ES 2.1.1.1 ROM. The user confirmed all three on hardware; including the corrected party artwork. The fast-forward indicator is also confirmed. Partial Bag redraws await console testing. See [Spanish testing notes](docs/SPANISH_SUPPORT_UK.md).
 
 **In-app updates.** When startup finds a newer stable Unbound Dual release, choose
 **Update** or **Later** before the ROM loads. To install later, choose
@@ -83,6 +83,8 @@ You need a homebrew-enabled Nintendo 3DS and your own **Pokémon Unbound 2.1.1.1
 3. Let the initial data preparation finish. The first preparation takes longer; later starts can reuse cached data.
 4. Continue your game using **Continue** in Unbound. Automatic ROM startup does not automatically restore a save state.
 
+**Interface language.** Open **MENU → Display → Interface language** to choose English, Español or Русский. The setting is saved independently of the ROM.
+
 To choose a different ROM, open **MENU → System → Unbound ROM**. A missing or moved ROM opens the picker again.
 
 <details>
@@ -93,7 +95,7 @@ To choose a different ROM, open **MENU → System → Unbound ROM**. A missing o
 | Supported game | Pokémon Unbound 2.1.1.1, English |
 | English ROM SHA-1 | `b4776b82a4c7915d0fadeaa27e013523f99dfd94` |
 | Application Title ID | `000400000BAC8200` |
-| Companion CIA version | `0.1.4` (test 15) |
+| Companion CIA version | `0.1.6` (test 17) |
 | Base emulator | gpSP 3D v0.1.7 |
 
 ROMs, Nintendo's BIOS and saves are not included. The open source BIOS replacement inherited from gpSP is supplied with its source under `bios/`.
@@ -177,4 +179,4 @@ Spanish sinza SHA-1: `117449bd7822fad0db293a4f7e364787e4f8543a`.
 Spanish 2.1.1.1 SHA-1: `1104054a3061b35b85b04757fbca5a3686cca60c`.
 Russian 2.1.1.1 (P.E.) SHA-1: `87d1485eaa64e242d39874add766a34f46cd9b32`.
 
-The Russian ROM is recognized by its SHA-1. Party, Bag, Map and Trainer Card display Cyrillic game data read directly from the patched ROM. The emulator's interface setting still offers English or Spanish. Apply the patch to your own ROM following the [P.E. translation instructions](https://github.com/PEdeveloper/pokemon-unbound-ru).
+The Russian ROM is recognized by its SHA-1. Party, Bag, Map and Trainer Card display Cyrillic game data read directly from the patched ROM. Apply the patch to your own ROM following the [P.E. translation instructions](https://github.com/PEdeveloper/pokemon-unbound-ru).

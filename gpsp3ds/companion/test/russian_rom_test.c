@@ -6,7 +6,7 @@
 
 unsigned char ewram[512 * 1024], iwram[64 * 1024];
 unsigned char* memory_map_read[8192];
-static uint16_t frame[320 * 240];
+static uint16_t frame[320 * 240], english[320 * 240];
 static unsigned char rom[32 * 1024 * 1024];
 
 static void load_file(const char* path, void* out, size_t length) {
@@ -29,6 +29,7 @@ int main(int argc, char** argv) {
     for (size_t i = 0; i < sizeof(rom) / 32768; i++)
         memory_map_read[4096 + i] = rom + i * 32768;
 
+    const struct pd_glyph* builtin = pd_font_glyph(0x410);
     companion_cache_directory(argv[3]);
     load_ram(argv[2], "unbound");
     if (!cp_adapter_open(argv[1])) {
@@ -83,12 +84,18 @@ int main(int argc, char** argv) {
     S->dirty = true;
     companion_draw(frame);
     S->ui.summarySlot = -1;
-    const int tabs[] = {PD_TAB_BAG, PD_TAB_MAP, PD_TAB_CARD};
+    const int tabs[] = {PD_TAB_PARTY, PD_TAB_BAG, PD_TAB_MAP, PD_TAB_CARD};
     for (size_t i = 0; i < sizeof(tabs) / sizeof(*tabs); ++i) {
         S->ui.tab = tabs[i];
-        S->dirty = true;
+        ud_language_set(UD_ENGLISH);
+        companion_invalidate();
+        companion_draw(english);
+        ud_language_set(UD_RUSSIAN);
+        companion_invalidate();
         companion_draw(frame);
+        assert(memcmp(english, frame, sizeof(frame)));
     }
+    assert(!strcmp(pd_item_name(&S->game, 13), "Зелье"));
     struct pd_card_info card;
     uint32_t pixels[PD_CARD_W * PD_CARD_H];
     assert(pd_card_info(&S->game, &S->snap, &card));
@@ -103,7 +110,7 @@ int main(int argc, char** argv) {
 
     size_t memory = companion_memory();
     cp_adapter_close();
-    assert(!companion_memory() && pd_font_glyph(0x410)->codepoint == '?');
+    assert(!companion_memory() && pd_font_glyph(0x410) == builtin);
     assert(cp_adapter_open(argv[1]));
     assert(!strcmp(companion_cache_status(), "hit"));
     assert(!strcmp(pd_item_name(&S->game, 13), "Зелье"));
