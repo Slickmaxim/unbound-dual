@@ -173,8 +173,11 @@ extern bool gpsp_guest_idle(void);
 extern bool gpsp_guest_begin(void);
 extern bool gpsp_guest_call(uint32_t,const uint32_t[4],uint32_t*,bool);
 extern void gpsp_guest_end(bool);
+extern bool gpsp_guest_call_stack(uint32_t,const uint32_t[7],uint32_t*);
+extern bool gpsp_guest_write(uint32_t,uint32_t,unsigned);
 static const struct companion_guest item_guest = {
-   gpsp_guest_idle, gpsp_guest_begin, gpsp_guest_call, gpsp_guest_end
+   gpsp_guest_idle, gpsp_guest_begin, gpsp_guest_call, gpsp_guest_end,
+   gpsp_guest_call_stack, gpsp_guest_write
 };
 #endif
 static char update_launch_path[513];
@@ -3273,7 +3276,7 @@ static void menu_build(int tab)
          else
             snprintf(about, sizeof(about), FRONTEND_NAME
 #ifdef CP_ENABLED
-                     " v0.2.0 test 11"
+                     " v0.2.0 test 12"
 #else
                      " " GPSP3D_VERSION
 #endif

@@ -40,7 +40,7 @@ static struct state {
     void *ctx;
     uint64_t next;
     unsigned interval;
-    bool dirty, bag_list_only, item_profile;
+    bool dirty, bag_list_only, item_profile, tm_profile;
     uint32_t target_personality[PD_PARTY_SIZE];
     int target_moves[PD_PARTY_SIZE][PD_NUM_MOVES];
     struct { int item, slot, move, frames; } item_request;
@@ -73,6 +73,25 @@ static bool item_profile_matches(const struct pd_game* g)
         item_crc(g,party->itemEffect,party->codeCrcs[3]);
 }
 
+// FireRed's native party menu. Unbound keeps these entries, but the generic
+// item-menu wrapper probes the medicine table before it chooses a pocket.
+static const struct tm_entry { uint32_t address, crc; } tm_entries[]={
+    {0x0811ea44,0x731f3e20}, // InitPartyMenu
+    {0x0811fb28,0x1ccd94fd}, // choose Pokémon task
+    {0x08125b40,0x9ca850aa}, // ItemUseCB_TMHM
+    {0x080563f0,0xe67bc364}, // clean up field windows
+    {0x080567dc,0xb892bbb7}, // return to field
+    {0x0811ebd0,0x3099dc9b}, // initialize the party screen
+    {0x08069940,0x0111a86e}, // lock field controls
+};
+
+static bool tm_profile_matches(const struct pd_game* g)
+{
+    for(unsigned i=0;i<sizeof(tm_entries)/sizeof(*tm_entries);++i)
+        if(!item_crc(g,tm_entries[i].address,tm_entries[i].crc)) return false;
+    return true;
+}
+
 static bool item_in(const uint16_t* ids,int count,int item)
 {
     for(int i=0;i<count;++i) if(ids[i]==item) return true;
@@ -89,10 +108,12 @@ static int item_kind(int id)
     int kind=item_in(p->ppOne,p->ppOneCount,id) ? 2 :
         (item_in(p->medicine,p->medicineCount,id) ||
          item_in(p->ppAll,p->ppAllCount,id)) ? 1 : 0;
-    if(!kind) return 0;
+    bool tm=S->tm_profile && item_guest->call_stack && item_guest->write && id>=289 && id<=346;
+    if(!kind && !tm) return 0;
     uint8_t record[32];
     if(!pd_rom_read(&S->game,cfg->itemDescs->base+44u*id,record,sizeof(record)) ||
         (record[14]|record[15]<<8)!=id) return 0;
+    if(tm && record[26]==4) return 3;
     uint32_t callback=record[28]|(uint32_t)record[29]<<8|
         (uint32_t)record[30]<<16|(uint32_t)record[31]<<24;
     for(int i=0;i<p->useFuncCount;++i)
@@ -129,6 +150,37 @@ static bool item_call(uint32_t address,uint32_t a,uint32_t b,uint32_t c,uint32_t
     return item_guest->call(address,args,out,query);
 }
 
+static void tm_open(int id)
+{
+    const struct pd_config* cfg=S->game.cfg;
+    uint32_t result, callback=0;
+    const char* message="Item use failed.";
+    bool opened=false;
+    const uint32_t menu[7]={
+        0,0,3,0,4, // field, single layout, use item, reset cursor, teach prompt
+        0x0811fb29,0x080567dd // choose Pokémon, return to field
+    };
+    uint8_t count=0;
+    if(item_call(cfg->fieldLocked,0,0,0,0,&result,true)){
+        if(result) message="Use items in the field.";
+        else if(item_call(cfg->fieldCheckBag,id,1,0,0,&result,true)){
+            if(result!=1) message="No items left.";
+            else if(S->read(S->ctx,cfg->partyFns->partyCount,&count,1) && count>0 &&
+                item_call(0x08069940,0,0,0,0,&result,false) &&
+                item_call(0x080563f0,0,0,0,0,&result,false) &&
+                item_guest->write(0x0203ad30,id,2) &&
+                item_guest->write(0x03005e98,0x08125b41,4) &&
+                item_guest->call_stack(0x0811ea44,menu,&result) &&
+                S->read(S->ctx,cfg->gMain+4,&callback,4) && callback==0x0811ebd1){
+                opened=true;
+                message="Choose a Pokémon in the game.";
+            }
+        }
+    }
+    item_guest->end(opened);
+    item_result(message);
+}
+
 void companion_item_tick(void)
 {
     if(!S || !item_guest) return;
@@ -142,16 +194,25 @@ void companion_item_tick(void)
     int id=S->item_request.item, slot=S->item_request.slot, move=S->item_request.move;
     uint8_t flags,count,raw[100];
     uint32_t callback;
-    if(!item_kind(id) || !S->read(S->ctx,cfg->gMain+4,&callback,4) ||
+    int kind=item_kind(id);
+    if(!kind || !S->read(S->ctx,cfg->gMain+4,&callback,4) ||
        callback!=0x080565b5 || !S->read(S->ctx,cfg->gMain+0x439,&flags,1) || (flags&2)){
         item_result("Use items in the field.");return;
+    }
+    if(kind==3){
+        if(!item_guest->idle() || !item_guest->begin()){
+            if(!--S->item_request.frames) item_result("Try again on the field.");
+            return;
+        }
+        tm_open(id);
+        return;
     }
     uint32_t mon=p->party+100u*slot;
     struct pd_mon live;
     if(!S->read(S->ctx,p->partyCount,&count,1) || slot>=count ||
        !S->read(S->ctx,mon,raw,sizeof(raw)) || !pd_decode_party_mon_for(cfg,raw,&live) ||
        live.egg || live.personality!=S->target_personality[slot] ||
-       (item_kind(id)==2 && live.moves[move]!=S->target_moves[slot][move])){
+       (kind==2 && live.moves[move]!=S->target_moves[slot][move])){
         item_result("The party changed.");return;
     }
     if(!item_guest->idle() || !item_guest->begin()){
@@ -183,7 +244,10 @@ static void item_touch_action(void)
 {
     struct pd_ui* ui=&S->ui;
     int kind=ui->action==PD_ACTION_ITEM_PICK ? item_kind(ui->itemId) : 0;
-    if(kind && !S->item_request.frames){
+    if(kind==3 && !S->item_request.frames){
+        S->item_request.item=ui->itemId;
+        S->item_request.frames=90;
+    }else if(kind && !S->item_request.frames){
         ui->itemPicking=true;
         ui->itemMoveSlot=-1;
         memset(ui->itemSlots,0,sizeof(ui->itemSlots));
@@ -227,6 +291,7 @@ bool companion_load(const uint8_t header[192],size_t size,cp_read_fn read,
     S=cp_calloc(1,sizeof(*S));if(!S){error="Not enough memory for Companion";return false;}
     S->game=game;
     S->item_profile=item_profile_matches(&S->game);
+    S->tm_profile=S->item_profile && tm_profile_matches(&S->game);
     S->read=read;S->ctx=ctx;S->interval=200;
 #ifdef COMPANION_NATIVE
     S->detail=-1;

@@ -3684,7 +3684,7 @@ bool gpsp_guest_begin(void)
   return true;
 }
 
-bool gpsp_guest_call(u32 address, const u32 args[4], u32 *result, bool query)
+static bool guest_call(u32 address, const u32* args, u32 *result, bool query, bool stack_args)
 {
   if (!guest_transaction || guest_running || guest_failed || !args || !result ||
       (address & ~1u) < 0x08000000 || (address & ~1u) >= 0x0a000000)
@@ -3695,6 +3695,17 @@ bool gpsp_guest_call(u32 address, const u32 args[4], u32 *result, bool query)
   memcpy(saved_spsr, spsr, sizeof(saved_spsr));
   unsigned checkpoint = guest_store_count;
 
+  u32 call_sp = saved[REG_SP];
+  if (stack_args) {
+    call_sp = (call_sp - 12) & ~7u;
+    for (unsigned i = 0; i < 3; ++i) {
+      if (!gpsp_guest_write(call_sp + i * 4, args[i + 4], 4)) {
+        guest_rollback(checkpoint);
+        return false;
+      }
+    }
+    reg[REG_SP] = call_sp;
+  }
   memcpy(reg, args, 4 * sizeof(*args));
   reg[REG_PC] = address & ~1u;
   reg[REG_LR] = guest_return_pc | 1u;
@@ -3705,7 +3716,7 @@ bool gpsp_guest_call(u32 address, const u32 args[4], u32 *result, bool query)
   guest_running = true;
   execute_arm_internal(1, false);
   guest_running = false;
-  bool ok = guest_returned && !guest_failed && reg[REG_SP] == saved[REG_SP];
+  bool ok = guest_returned && !guest_failed && reg[REG_SP] == call_sp;
   if (ok) *result = reg[0];
   memcpy(reg, saved, sizeof(saved));
   memcpy(reg_mode, saved_modes, sizeof(saved_modes));
@@ -3713,6 +3724,26 @@ bool gpsp_guest_call(u32 address, const u32 args[4], u32 *result, bool query)
   if (query || !ok) guest_rollback(checkpoint);
   if (!ok) guest_failed = true;
   return ok;
+}
+
+bool gpsp_guest_call(u32 address, const u32 args[4], u32 *result, bool query)
+{
+  return guest_call(address, args, result, query, false);
+}
+
+bool gpsp_guest_call_stack(u32 address, const u32 args[7], u32 *result)
+{
+  return guest_call(address, args, result, false, true);
+}
+
+bool gpsp_guest_write(u32 address, u32 value, unsigned size)
+{
+  if (!guest_transaction || guest_running || (size != 1 && size != 2 && size != 4)
+      || !guest_before_store(address,size)) return false;
+  if (size == 1) write_memory8(address,value);
+  else if (size == 2) write_memory16(address,value);
+  else write_memory32(address,value);
+  return true;
 }
 
 void gpsp_guest_end(bool commit)

@@ -9,6 +9,8 @@ extern uint32_t reg[];
 extern bool gpsp_guest_begin(void);
 extern bool gpsp_guest_call(uint32_t,const uint32_t[4],uint32_t*,bool);
 extern void gpsp_guest_end(bool);
+extern bool gpsp_guest_call_stack(uint32_t,const uint32_t[7],uint32_t*);
+extern bool gpsp_guest_write(uint32_t,uint32_t,unsigned);
 static void load(const char*path,void*out,size_t n){
  FILE*f=fopen(path,"rb");assert(f&&fread(out,1,n,f)==n);fclose(f);
 }
@@ -61,5 +63,25 @@ int main(int argc,char**argv){
  assert(gpsp_guest_call(134478824,getpp,&r,true)&&r==11);
  gpsp_guest_end(true);
  puts("Ether: PP 1->11; quantity 2->1.");
+ const uint32_t zero[4]={0}, tmargs[4]={289,1,0,0};
+ const uint32_t menu[7]={0,0,3,0,4,0x0811fb29,0x080567dd};
+ ewram[0x3c41c]=289&255;ewram[0x3c41d]=289>>8;ewram[0x3c41e]=1;
+ uint32_t previous_callback,callback,exit_callback;
+ memcpy(&previous_callback,iwram+0xb0f4,4);
+ assert(gpsp_guest_begin());
+ assert(gpsp_guest_call(134848320,tmargs,&r,true)&&r==1);
+ assert(gpsp_guest_call(0x08069940,zero,&r,false));
+ assert(gpsp_guest_call(0x080563f0,zero,&r,false));
+ assert(gpsp_guest_write(0x0203ad30,289,2));
+ assert(gpsp_guest_write(0x03005e98,0x08125b41,4));
+ assert(gpsp_guest_call_stack(0x0811ea44,menu,&r));
+ memcpy(&callback,iwram+0xb0f4,4);
+ memcpy(&exit_callback,ewram+0x3b0a0,4);
+ assert(callback==0x0811ebd1 && exit_callback==0x080567dd);
+ assert(gpsp_guest_call(134848320,tmargs,&r,true)&&r==1);
+ gpsp_guest_end(false);
+ memcpy(&callback,iwram+0xb0f4,4);
+ assert(callback==previous_callback);
+ puts("TM01: native party-menu callback, field return and no consumption on opening.");
  free(rom);
 }

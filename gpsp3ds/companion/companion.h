@@ -30,6 +30,8 @@ struct companion_guest {
     bool (*begin)(void);
     bool (*call)(uint32_t, const uint32_t[4], uint32_t*, bool);
     void (*end)(bool);
+    bool (*call_stack)(uint32_t, const uint32_t[7], uint32_t*);
+    bool (*write)(uint32_t, uint32_t, unsigned);
 };
 void companion_item_bind(const struct companion_guest* guest);
 void companion_item_tick(void);

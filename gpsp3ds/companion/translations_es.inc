@@ -65,6 +65,7 @@ static const struct translation translations[] = {
  {"Checking...","Comprobando..."},
  {"Checks at startup (needs Wi-Fi).","Comprueba al iniciar (con Wi-Fi)."},
  {"Choose 2x, 3x or 4x. Actual speed depends\non the game and console.","Elige 2x, 3x o 4x. La velocidad real depende\ndel juego y de la consola."},
+ {"Choose a Pokémon in the game.","Elige un Pokémon en el juego."},
  {"Choose or change the autostart ROM.\nAlso editable as companion_rom in the config.","Elige el ROM para el inicio automático.\nTambién editable como companion_rom."},
  {"Choose your Unbound ROM. Its path is saved\nand can be changed in System or the config.","Elige tu ROM Unbound. Puedes cambiarlo\nen Sistema o en la configuración."},
  {"Classic","Clásico"},

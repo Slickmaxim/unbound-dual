@@ -118,6 +118,8 @@ void execute_arm(u32 cycles);
 bool gpsp_guest_idle(void);
 bool gpsp_guest_begin(void);
 bool gpsp_guest_call(u32 thumb_address, const u32 args[4], u32 *result, bool query);
+bool gpsp_guest_call_stack(u32 address, const u32 args[7], u32 *result);
+bool gpsp_guest_write(u32 address, u32 value, unsigned size);
 void gpsp_guest_end(bool commit);
 /* Interpret mutable VRAM until execution leaves it or a frame completes.
  * Returns the same cycle-count/frame-complete encoding as update_gba(). */

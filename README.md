@@ -67,7 +67,7 @@ A CIA release must retain the same title ID and use a higher CIA package version
 **Bag item use (preview).** Select a supported medicine, berry or PP item
 and tap **Use** while standing in the field. The game applies the effect and
 consumes one item in the same operation. The option depends on the item
-handler in your ROM. TM/HM teaching requires a separate compatible menu path.
+handler in your ROM. For a TM or HM, **Use** opens the game’s teaching screen.
 
 ## Installation
 
@@ -88,7 +88,7 @@ To choose a different ROM, open **MENU → System → Unbound ROM**. A missing o
 | Supported game | Pokémon Unbound 2.1.1.1, English |
 | English ROM SHA-1 | `b4776b82a4c7915d0fadeaa27e013523f99dfd94` |
 | Application Title ID | `000400000BAC8200` |
-| Companion CIA version | `0.1.0` (test 11) |
+| Companion CIA version | `0.1.1` (test 12) |
 | Base emulator | gpSP 3D v0.1.7 |
 
 ROMs, Nintendo's BIOS and saves are not included. The open source BIOS replacement inherited from gpSP is supplied with its source under `bios/`.
