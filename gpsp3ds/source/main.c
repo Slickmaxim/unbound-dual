@@ -2,7 +2,7 @@
 #ifdef CP_ENABLED
 #include "../companion/localization.h"
 #include "../companion/bag_refresh.h"
-#define UPDATE_VERSION "0.2.0"
+#define UPDATE_VERSION "0.2.1"
 #define UPDATE_APP "Unbound Dual"
 #else
 #define ud_tr(s) (s)
@@ -3287,7 +3287,7 @@ static void menu_build(int tab)
          else
             snprintf(about, sizeof(about), FRONTEND_NAME
 #ifdef CP_ENABLED
-                     " v0.2.0 test 17"
+                     " v" UPDATE_VERSION
 #else
                      " " GPSP3D_VERSION
 #endif

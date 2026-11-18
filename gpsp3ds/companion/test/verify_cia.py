@@ -11,7 +11,7 @@ def verify(path,title_id,label,shortcut):
  tm=om+SIG[struct.unpack_from('>I',d,om)[0]];tk=ot+SIG[struct.unpack_from('>I',d,ot)[0]]
  info=tm+0xC4;chunks=info+0x900;count=struct.unpack_from('>H',d,info+2)[0]
  assert count==1
- assert struct.unpack_from('>H',d,tm+0x9C)[0]==22, "CIA version must be 0.1.6"
+ assert struct.unpack_from('>H',d,tm+0x9C)[0]==23, "CIA version must be 0.1.7"
  size=struct.unpack_from('>Q',d,chunks+8)[0];ncch=d[oc:oc+size]
  assert sha(ncch)==d[chunks+16:chunks+48]
  assert sha(d[chunks:chunks+count*48])==d[info+4:info+36]
@@ -30,8 +30,9 @@ def verify(path,title_id,label,shortcut):
   b=exefs[512+off:512+off+n];assert sha(b)==exefs[512-(i+1)*32:512-i*32];files[name]=b
  smdh=files[b'icon'];assert smdh[:4]==b'SMDH'
  assert smdh[8:0x88].decode('utf-16le').rstrip('\0')==label
+ assert smdh[0x88:0x188].decode('utf-16le').rstrip('\0')=='Unbound Dual v0.2.1'
  if meta>=0x400+0x36C0:assert d[omet+0x400:omet+0x400+0x36C0]==smdh
- code=files[b'.code'];assert b'https://github.com/Slickmaxim/unbound-dual/releases/latest' in code;assert b'companion-launch.txt' in code and b'@companion' in code
+ code=files[b'.code'];assert b'0.2.1\0' in code and b'Unexpected CIA title or version.' in code;assert b'https://github.com/Slickmaxim/unbound-dual/releases/latest' in code;assert b'companion-launch.txt' in code and b'@companion' in code
  if shortcut:assert struct.pack('<Q',0x000400000BAC8200) in code
  else:assert b'companion-gpsp3d.cfg' in code and b'companion_rom' in code
  assert files[b'banner'][:4]==b'CBMD'

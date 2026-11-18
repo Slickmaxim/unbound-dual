@@ -229,3 +229,5 @@ Sonic Advance 1 and 2, Ace Combat Advance, Asterix, Downhill Jam, Pokémon Emera
 - Added an exact profile for the P.E. Russian 2.1.1.1 ROM (test 16). Read Russian names and descriptions from the ROM, keep native Party frames and fonts, and use Cyrillic labels on the Trainer Card. Host checks use the real RU ROM and baseline Unbound RAM fixtures. Console validation is pending.
 
 - Added Русский to Display → Interface language (test 17). The setting persists as `interface_language=ru`. Menus and companion tabs ship with Cyrillic glyphs for every supported ROM language.
+
+- v0.2.1 includes the Test 17 changes. The app reports v0.2.1 and the CIA uses package version 0.1.7, so Test 17 can detect and install the public release. Hardware update installation remains to be tested.
