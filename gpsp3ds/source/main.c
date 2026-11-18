@@ -451,6 +451,9 @@ static void config_load(void)
 {
    char line[600];
    FILE *f;
+#ifdef CP_ENABLED
+   bool gpu_default_applied = false;
+#endif
    memcpy(keymap_global, keymap_default, NKEYS);
    memcpy(keymap, keymap_default, NKEYS);
    f = fopen(CONFIG_PATH, "r");
@@ -523,6 +526,7 @@ static void config_load(void)
       else if (!strcmp(line, "slot"))
          opt_slot = atoi(eq) >= 0 && atoi(eq) <= 9 ? atoi(eq) : 0;
 #ifdef CP_ENABLED
+      else if (!strcmp(line, "gpu_default_applied")) gpu_default_applied = !strcmp(eq, "1");
       else if (!strcmp(line, "companion_dark")) opt_cp_dark=atoi(eq)!=0;
       else if (!strcmp(line, "companion_filter")) opt_cp_smooth=atoi(eq)!=0;
       else if (!strcmp(line, "interface_language")) ud_language_set(!strcmp(eq,"es"));
@@ -554,6 +558,12 @@ static void config_load(void)
       }
    }
    fclose(f);
+#ifdef CP_ENABLED
+   // Apply the new default once to older companion and imported gpSP configs.
+   // Future menu choices and crash recovery are written with the marker.
+   if (!gpu_default_applied)
+      opt_gpu = 1;
+#endif
 }
 
 static void config_save(void)
@@ -571,6 +581,7 @@ static void config_save(void)
          opt_slot, opt_smooth, opt_audio_stretch, opt_lowprio, opt_sat, opt_bright, opt_gapfill, opt_crt,
          opt_ff_toggle, opt_ff_speed, opt_overlay, opt_update, opt_rtc, opt_rtc_days, opt_rtc_hours, opt_intro, opt_bottom);
 #ifdef CP_ENABLED
+   fputs("gpu_default_applied=1\n", f);
    fprintf(f,"interface_language=%s\n",ud_language_get()?"es":"en");
    fprintf(f,"companion_dark=%d\ncompanion_filter=%d\ncompanion_rom=%s\n",opt_cp_dark,opt_cp_smooth,opt_cp_rom);
 #endif
@@ -3277,7 +3288,7 @@ static void menu_build(int tab)
          else
             snprintf(about, sizeof(about), FRONTEND_NAME
 #ifdef CP_ENABLED
-                     " v0.2.0 test 13"
+                     " v0.2.0 test 14"
 #else
                      " " GPSP3D_VERSION
 #endif

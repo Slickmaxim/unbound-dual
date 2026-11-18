@@ -219,3 +219,5 @@ Sonic Advance 1 and 2, Ace Combat Advance, Asterix, Downhill Jam, Pokémon Emera
 - TM/HM preview (CIA 0.1.1, test 12). Validate the native party-menu routines and the item's TM pocket. Call the game's party menu initializer directly, since the generic wrapper treats the TM as a medicine record. Start and commit the menu transition together. The game controls teaching and returns to the field. Host tests cover TM01 opening without spending the item and restoring the original callback on rollback. Teaching and field return still need hardware testing.
 
 - Bag request timing (test 13). Execute the one-shot request during the verified Unbound VBlank SWI wait before the next IRQ. The main frame boundary only arms the request and handles timeout. Keep field, item and target checks at the execution point.
+
+- GPU Display is enabled for new configurations and applied once when an older configuration is imported (test 14). Later menu choices and the fallback after a GPU freeze are saved normally.
