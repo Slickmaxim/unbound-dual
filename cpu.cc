@@ -851,10 +851,71 @@ const u32 spsr_masks[4] = { 0x00000000, 0x000000EF, 0xF0000000, 0xF00000EF };
 #define aligned_address_mask16 0xF0000001
 #define aligned_address_mask32 0xF0000003
 
+// Guest calls never advance timers or write peripherals. Journal work-RAM
+// stores so a failed call, or an entire failed item use, can be undone.
+static struct guest_store { u8 *p; u8 bytes[4]; unsigned size; } guest_stores[2048];
+static unsigned guest_store_count, guest_steps;
+static bool guest_transaction, guest_running, guest_failed, guest_returned;
+static const u32 guest_return_pc = 0x01000000;
+
+static bool guest_read_ok(u32 address)
+{
+  unsigned region = address >> 24;
+  if (region == 2 || region == 3 || (region >= 8 && region <= 12))
+    return true;
+  guest_failed = true;
+  return false;
+}
+
+static bool guest_before_store(u32 address, unsigned size)
+{
+  if ((address & (size - 1)) || guest_failed || guest_store_count == sizeof(guest_stores)/sizeof(guest_stores[0])) {
+    guest_failed = true;
+    return false;
+  }
+  u8 *p;
+  if (address >> 24 == 2)
+    p = ewram + (address & 0x3ffff);
+  else if (address >> 24 == 3)
+    p = iwram + 0x8000 + (address & 0x7fff);
+  else {
+    guest_failed = true;
+    return false;
+  }
+  guest_store &store = guest_stores[guest_store_count++];
+  store.p = p;
+  store.size = size;
+  memcpy(store.bytes, p, size);
+  return true;
+}
+
+static void guest_rollback(unsigned until)
+{
+  while (guest_store_count > until) {
+    const guest_store &store = guest_stores[--guest_store_count];
+    memcpy(store.p, store.bytes, store.size);
+  }
+}
+
+static bool guest_next_instruction()
+{
+  if (guest_failed || !guest_steps || (reg[CPU_MODE] != MODE_SYSTEM && reg[CPU_MODE] != MODE_USER))
+    return false;
+  if (reg[REG_PC] == guest_return_pc) {
+    guest_returned = true;
+    return false;
+  }
+  if (!guest_read_ok(reg[REG_PC]))
+    return false;
+  --guest_steps;
+  return true;
+}
+
 #define fast_read_memory(size, type, addr, dest, readfn)                      \
 {                                                                             \
   u8 *map;                                                                    \
   u32 _address = addr;                                                        \
+  if (guest_running && !guest_read_ok(_address)) { dest = 0; } else { \
   bool _io_handler = ((_address >> 24) == 0x04) &&                            \
                      io_read_requires_handler(_address);                       \
                                                                               \
@@ -891,6 +952,7 @@ const u32 spsr_masks[4] = { 0x00000000, 0x000000EF, 0xF0000000, 0xF00000EF };
     dest = (type)readaddress##size(map, (_address & 0x7FFF));                 \
   }                                                                           \
 }                                                                             \
+  } \
 
 #define fast_write_memory(size, type, address, value)                         \
 {                                                                             \
@@ -902,12 +964,14 @@ const u32 spsr_masks[4] = { 0x00000000, 0x000000EF, 0xF0000000, 0xF00000EF };
     STATS_MEMORY_ACCESS(write, type, region);                                 \
   }                                                                           \
                                                                               \
-  cpu_alert |= write_memory##size(_address, value);                           \
+  if (!guest_running || guest_before_store(_address, size / 8)) \
+    cpu_alert |= write_memory##size(_address, value);                           \
 }                                                                             \
 
 #define load_aligned32(address, dest)                                         \
 {                                                                             \
   u32 _address = address;                                                     \
+  if (guest_running && !guest_read_ok(_address)) { dest = 0; } else { \
   u8 *map = memory_map_read[_address >> 15];                                  \
   bool _io_handler = ((_address >> 24) == 0x04) &&                            \
                      io_read_requires_handler(_address);                       \
@@ -935,6 +999,7 @@ const u32 spsr_masks[4] = { 0x00000000, 0x000000EF, 0xF0000000, 0xF00000EF };
       dest = read_memory32(_address);                                         \
   }                                                                           \
 }                                                                             \
+  } \
 
 #define store_aligned32(address, value)                                       \
 {                                                                             \
@@ -946,7 +1011,8 @@ const u32 spsr_masks[4] = { 0x00000000, 0x000000EF, 0xF0000000, 0xF00000EF };
     cycles_remaining -= ws_cyc_seq[region][1];                                \
     STATS_MEMORY_ACCESS(write, u32, region);                                  \
   }                                                                           \
-  cpu_alert |= write_memory32(_address, value);                               \
+  if (!guest_running || guest_before_store(_address, 4)) \
+    cpu_alert |= write_memory32(_address, value);                               \
 }                                                                             \
 
 #define load_memory_u8(address, dest)                                         \
@@ -1537,11 +1603,12 @@ static u32 execute_arm_internal(u32 cycles, bool vram_only)
 arm_loop:
 
        collapse_flags();
+       if (guest_running && !guest_next_instruction()) return 0;
        if (vram_only && (reg[REG_PC] >> 24) != 0x06)
           return cycles_remaining > 0 ? (u32)cycles_remaining : update_gba(cycles_remaining);
 
        /* Process cheats if we are about to execute the cheat hook */
-       if (reg[REG_PC] == cheat_master_hook)
+       if (!guest_running && reg[REG_PC] == cheat_master_hook)
           process_cheats();
 
        /* Execute ARM instruction */
@@ -1549,6 +1616,7 @@ arm_loop:
        check_pc_region();
        reg[REG_PC] &= ~0x03;
        opcode = readaddress32(pc_address_block, (reg[REG_PC] & 0x7FFF));
+       if (guest_running && (opcode & 0x0f000000) == 0x0f000000) return 0;
        condition = opcode >> 28;
 
        switch(condition)
@@ -3086,10 +3154,11 @@ skip_instruction:
 
        if (reg[REG_PC] == idle_loop_target_pc && cycles_remaining > 0) cycles_remaining = 0;
 
+       if (guest_running && (cpu_alert & (CPU_ALERT_HALT | CPU_ALERT_IRQ))) return 0;
        if (cpu_alert & (CPU_ALERT_HALT | CPU_ALERT_IRQ))
          goto alert;
 
-    } while(cycles_remaining > 0);
+    } while(guest_running || cycles_remaining > 0);
 
     collapse_flags();
     update_ret = update_gba(cycles_remaining);
@@ -3103,11 +3172,12 @@ skip_instruction:
 thumb_loop:
 
        collapse_flags();
+       if (guest_running && !guest_next_instruction()) return 0;
        if (vram_only && (reg[REG_PC] >> 24) != 0x06)
           return cycles_remaining > 0 ? (u32)cycles_remaining : update_gba(cycles_remaining);
 
        /* Process cheats if we are about to execute the cheat hook */
-       if (reg[REG_PC] == cheat_master_hook)
+       if (!guest_running && reg[REG_PC] == cheat_master_hook)
           process_cheats();
 
        /* Execute THUMB instruction */
@@ -3116,6 +3186,7 @@ thumb_loop:
        check_pc_region();
        reg[REG_PC] &= ~0x01;
        opcode = readaddress16(pc_address_block, (reg[REG_PC] & 0x7FFF));
+       if (guest_running && (opcode & 0xff00) == 0xdf00) return 0;
 
        #ifdef TRACE_INSTRUCTIONS
        interp_trace_instruction(reg[REG_PC], 0);
@@ -3568,10 +3639,11 @@ thumb_loop:
 
        if (reg[REG_PC] == idle_loop_target_pc && cycles_remaining > 0) cycles_remaining = 0;
 
+       if (guest_running && (cpu_alert & (CPU_ALERT_HALT | CPU_ALERT_IRQ))) return 0;
        if (cpu_alert & (CPU_ALERT_HALT | CPU_ALERT_IRQ))
           goto alert;
 
-    } while(cycles_remaining > 0);
+    } while(guest_running || cycles_remaining > 0);
 
     collapse_flags();
     update_ret = update_gba(cycles_remaining);
@@ -3589,6 +3661,116 @@ thumb_loop:
 void execute_arm(u32 cycles)
 {
   execute_arm_internal(cycles, false);
+}
+
+static void (*guest_wait_hook)(void);
+
+void gpsp_guest_set_wait_hook(void (*hook)(void))
+{
+  guest_wait_hook = hook;
+}
+
+bool gpsp_guest_idle(void)
+{
+  // The audited Unbound main loop calls SWI Halt from WaitForVBlank.
+  // With the bundled BIOS the CPU is in System mode inside that SWI.
+  return reg[CPU_MODE] == MODE_SYSTEM && reg[CPU_HALT_STATE] == CPU_HALT &&
+    reg[REG_PC] < 0x4000 && REG_MODE(MODE_SUPERVISOR)[6] == 0x0800089c;
+}
+
+bool gpsp_guest_poll_wait(void)
+{
+  if (!guest_wait_hook || !gpsp_guest_idle()) return false;
+  void (*hook)(void) = guest_wait_hook;
+  guest_wait_hook = NULL;
+  hook();
+  return true;
+}
+
+bool gpsp_guest_begin(void)
+{
+  if (guest_transaction || (reg[CPU_MODE] != MODE_SYSTEM && reg[CPU_MODE] != MODE_USER))
+    return false;
+  u32 sp = reg[REG_SP];
+  if ((sp >> 24 != 2 && sp >> 24 != 3) || (sp & 3))
+    return false;
+  guest_transaction = true;
+  guest_failed = false;
+  guest_store_count = 0;
+  return true;
+}
+
+static bool guest_call(u32 address, const u32* args, u32 *result, bool query, bool stack_args)
+{
+  if (!guest_transaction || guest_running || guest_failed || !args || !result ||
+      (address & ~1u) < 0x08000000 || (address & ~1u) >= 0x0a000000)
+    return false;
+  u32 saved[64], saved_modes[7][7], saved_spsr[6];
+  memcpy(saved, reg, sizeof(saved));
+  memcpy(saved_modes, reg_mode, sizeof(saved_modes));
+  memcpy(saved_spsr, spsr, sizeof(saved_spsr));
+  unsigned checkpoint = guest_store_count;
+
+  u32 call_sp = saved[REG_SP];
+  if (stack_args) {
+    call_sp = (call_sp - 12) & ~7u;
+    for (unsigned i = 0; i < 3; ++i) {
+      if (!gpsp_guest_write(call_sp + i * 4, args[i + 4], 4)) {
+        guest_rollback(checkpoint);
+        return false;
+      }
+    }
+    reg[REG_SP] = call_sp;
+  }
+  memcpy(reg, args, 4 * sizeof(*args));
+  reg[REG_PC] = address & ~1u;
+  reg[REG_LR] = guest_return_pc | 1u;
+  reg[REG_CPSR] |= 0xa0; // Thumb, IRQ masked.
+  reg[CPU_HALT_STATE] = CPU_ACTIVE;
+  guest_steps = 50000;
+  guest_returned = false;
+  guest_running = true;
+  execute_arm_internal(1, false);
+  guest_running = false;
+  bool ok = guest_returned && !guest_failed && reg[REG_SP] == call_sp;
+  if (ok) *result = reg[0];
+  memcpy(reg, saved, sizeof(saved));
+  memcpy(reg_mode, saved_modes, sizeof(saved_modes));
+  memcpy(spsr, saved_spsr, sizeof(saved_spsr));
+  if (query || !ok) guest_rollback(checkpoint);
+  if (!ok) guest_failed = true;
+  return ok;
+}
+
+bool gpsp_guest_call(u32 address, const u32 args[4], u32 *result, bool query)
+{
+  return guest_call(address, args, result, query, false);
+}
+
+bool gpsp_guest_call_stack(u32 address, const u32 args[7], u32 *result)
+{
+  return guest_call(address, args, result, false, true);
+}
+
+bool gpsp_guest_write(u32 address, u32 value, unsigned size)
+{
+  if (!guest_transaction || guest_running || (size != 1 && size != 2 && size != 4)
+      || !guest_before_store(address,size)) return false;
+  if (size == 1) write_memory8(address,value);
+  else if (size == 2) write_memory16(address,value);
+  else write_memory32(address,value);
+  return true;
+}
+
+void gpsp_guest_end(bool commit)
+{
+  if (!guest_transaction) return;
+  if (!commit || guest_failed) guest_rollback(0);
+  guest_store_count = 0;
+  guest_transaction = false;
+#ifdef HAVE_DYNAREC
+  flush_translation_cache_ram_after_interp();
+#endif
 }
 
 u32 function_cc execute_arm_vram(u32 cycles)

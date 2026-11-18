@@ -1,4 +1,5 @@
 #include "pd_snapshot.h"
+#include "pd_unbound_ru.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -48,6 +49,49 @@ static const char* gen3_char(uint8_t c) {
     switch (c) {
     case 0x00: return " ";
     case 0x1B: return "é";
+    case 0x01: return "À";
+    case 0x02: return "Á";
+    case 0x03: return "Â";
+    case 0x04: return "Ç";
+    case 0x05: return "È";
+    case 0x06: return "É";
+    case 0x07: return "Ê";
+    case 0x08: return "Ë";
+    case 0x09: return "Ì";
+    case 0x0B: return "Î";
+    case 0x0C: return "Ï";
+    case 0x0D: return "Ò";
+    case 0x0E: return "Ó";
+    case 0x0F: return "Ô";
+    case 0x10: return "Œ";
+    case 0x11: return "Ù";
+    case 0x12: return "Ú";
+    case 0x13: return "Û";
+    case 0x14: return "Ñ";
+    case 0x15: return "ß";
+    case 0x16: return "à";
+    case 0x17: return "á";
+    case 0x19: return "ç";
+    case 0x1A: return "è";
+    case 0x1C: return "ê";
+    case 0x1D: return "ë";
+    case 0x1E: return "ì";
+    case 0x20: return "î";
+    case 0x21: return "ï";
+    case 0x22: return "ò";
+    case 0x23: return "ó";
+    case 0x24: return "ô";
+    case 0x25: return "œ";
+    case 0x26: return "ù";
+    case 0x27: return "ú";
+    case 0x28: return "û";
+    case 0x29: return "ñ";
+    case 0x2A: return "º";
+    case 0x2B: return "ª";
+    case 0x5A: return "Í";
+    case 0x6F: return "í";
+    case 0x51: return "¿";
+    case 0x52: return "¡";
     case 0xAB: return "!";
     case 0xAC: return "?";
     case 0xAD: return ".";
@@ -67,20 +111,37 @@ static const char* gen3_char(uint8_t c) {
 // Control-code argument counts after 0xFC (the app's FC_ARGS).
 static const uint8_t FC_ARGS[] = { 0, 1, 1, 1, 3, 1, 1, 0, 1, 0, 0, 2, 1, 1, 1, 0, 2, 1, 1, 1, 1, 0, 0, 0, 0 };
 
-void pd_gen3_text(const uint8_t* src, size_t maxLen, char* out, size_t outLen) {
+void pd_gen3_text_for(const struct pd_config* cfg, const uint8_t* src, size_t maxLen, char* out, size_t outLen) {
+    if (!outLen) return;
     size_t n = 0;
     out[0] = 0;
     for (size_t i = 0; i < maxLen && src[i] != 0xFF; i++) {
         const char* s;
+        char letter[3];
         uint8_t c = src[i];
         if (c == 0xFE || c == 0xFA || c == 0xFB) {
             s = " "; // line / paragraph breaks
+        } else if (c == 0xF9 && cfg && cfg->cyrillic && i + 1 < maxLen) {
+            uint8_t symbol = src[++i];
+            static const char* const macros[] = {
+                "↑", "↓", "←", "→", "+", "Ур", "РР", "ИД", "№", " ",
+                "1", "2", "3", "4", "5", "6", "7", "8", "9", "(", ")"
+            };
+            s = symbol < sizeof(macros) / sizeof(*macros) ? macros[symbol] : "?";
         } else if (c == 0xFC) {
             uint8_t code = i + 1 < maxLen ? src[i + 1] : 0;
             i += 1 + (code < sizeof(FC_ARGS) ? FC_ARGS[code] : 0);
             continue;
         } else {
-            s = gen3_char(c);
+            uint32_t cp = cfg && cfg->cyrillic ? pd_ru_codepoint(c) : 0;
+            if (cp) {
+                letter[0] = (char) (0xC0 | (cp >> 6));
+                letter[1] = (char) (0x80 | (cp & 0x3F));
+                letter[2] = 0;
+                s = letter;
+            } else {
+                s = gen3_char(c);
+            }
         }
         size_t l = strlen(s);
         if (n + l + 1 > outLen) break;
@@ -96,8 +157,8 @@ void pd_gen3_text(const uint8_t* src, size_t maxLen, char* out, size_t outLen) {
     if (lead) memmove(out, out + lead, n - lead + 1);
 }
 
-static void decode_name(const uint8_t* src, int maxLen, char* out, size_t outLen) {
-    pd_gen3_text(src, (size_t) maxLen, out, outLen);
+void pd_gen3_text(const uint8_t* src, size_t maxLen, char* out, size_t outLen) {
+    pd_gen3_text_for(NULL, src, maxLen, out, outLen);
 }
 
 // GetMonGender: the personality's low byte against the species' ratio; and
@@ -112,8 +173,8 @@ static enum pd_gender gender_of(const struct pd_config* cfg, const struct pd_mon
         count = cfg->text->genderRatiosCount;
     }
     if (m->species == PD_SPECIES_EGG || m->species >= count) return PD_GENDER_NONE;
-    if ((m->species == 29 && !strcmp(m->nickname, "NIDORAN♀")) ||
-        (m->species == 32 && !strcmp(m->nickname, "NIDORAN♂"))) {
+    if ((m->species == 29 && !strcmp(m->nickname, cfg && cfg->cyrillic ? "Нидоран♀" : "NIDORAN♀")) ||
+        (m->species == 32 && !strcmp(m->nickname, cfg && cfg->cyrillic ? "Нидоран♂" : "NIDORAN♂"))) {
         return PD_GENDER_NONE;
     }
     int ratio = ratios[m->species];
@@ -171,7 +232,7 @@ static bool decode_rowe_mon(const uint8_t* raw, const struct pd_party_layout* l,
     m->maxHp = u16(raw + l->maxHp);
     m->status = u32(raw + l->status);
     if (raw[l->flags] & l->eggMask) m->species = PD_SPECIES_EGG, m->egg = true;
-    decode_name(raw + l->nicknameOff, l->nicknameLen, m->nickname, sizeof(m->nickname));
+    pd_gen3_text_for(cfg, raw + l->nicknameOff, l->nicknameLen, m->nickname, sizeof(m->nickname));
     m->gender = gender_of(cfg, m, personality);
     m->shiny = mon_shiny(raw, l);
     return true;
@@ -210,7 +271,7 @@ static bool decode_er_mon(const uint8_t* raw, const struct pd_party_layout* l, c
     m->maxHp = u16(raw + l->maxHp);
     m->status = u32(raw + l->status);
     if ((w14 >> 15) & 1) m->species = PD_SPECIES_EGG, m->egg = true;
-    decode_name(raw + l->nicknameOff, l->nicknameLen, m->nickname, sizeof(m->nickname));
+    pd_gen3_text_for(cfg, raw + l->nicknameOff, l->nicknameLen, m->nickname, sizeof(m->nickname));
     m->gender = gender_of(cfg, m, m->personality);
     m->shiny = mon_shiny(raw, l);
     return true;
@@ -340,7 +401,7 @@ bool pd_decode_party_mon_c(const uint8_t* raw, const struct pd_party_layout* l, 
     // The flags byte (isBadEgg, hasSpecies, isEgg): an egg shows as SPECIES_EGG, like the party menu.
     m->egg = l->eggInIvWord ? (ivWord >> 30) & 1 : (raw[l->flags] & l->eggMask) != 0;
     if (m->egg) m->species = PD_SPECIES_EGG;
-    decode_name(raw + l->nicknameOff, l->nicknameLen, m->nickname, sizeof(m->nickname));
+    pd_gen3_text_for(cfg, raw + l->nicknameOff, l->nicknameLen, m->nickname, sizeof(m->nickname));
     m->gender = gender_of(cfg, m, personality);
     m->shiny = mon_shiny(raw, l);
     return true;
@@ -800,7 +861,7 @@ const char* pd_item_name(const struct pd_game* g, int item) {
 static const char* rom_item_description(const struct pd_game* g, int item) {
     const struct pd_item_descs* t = g->cfg ? g->cfg->itemDescs : NULL;
     if (!t || !g->rom || item <= 0) return NULL;
-    static struct { unsigned rom; int item; char text[200]; } cache[8];
+    static struct { unsigned rom; int item; char text[400]; } cache[8];
     static int next;
     for (int i = 0; i < 8; i++)
         if (cache[i].rom == pd_rom_id(g) && cache[i].item == item) return cache[i].text;
@@ -817,16 +878,8 @@ static const char* rom_item_description(const struct pd_game* g, int item) {
     const uint8_t* src = pd_rom_at(g, ptr, 1);
     if (!src) return NULL;
     size_t avail = g->romSize - (ptr - 0x08000000u);
-    char raw[256];
-    pd_gen3_text(src, avail < 200 ? avail : 200, raw, sizeof raw);
     char* out = cache[next].text;
-    size_t n = 0;
-    for (const char* c = raw; *c && n + 1 < sizeof cache[0].text; c++) {
-        if (*c == ' ' && (n == 0 || out[n - 1] == ' ')) continue;
-        out[n++] = *c;
-    }
-    while (n && out[n - 1] == ' ') n--;
-    out[n] = 0;
+    pd_gen3_text_for(g->cfg, src, avail < 200 ? avail : 200, out, sizeof(cache[next].text));
     cache[next].rom = pd_rom_id(g);
     cache[next].item = item;
     next = (next + 1) % 8;

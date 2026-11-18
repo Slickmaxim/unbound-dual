@@ -15,10 +15,19 @@
 #include "update.h"
 #ifdef HAVE_CURL
 #include <curl/curl.h>
+#ifdef CP_ENABLED
+#include "update_roots.h"
+#endif
 #endif
 
-#define LATEST_URL "https://github.com/bheppe/gpsp-3d/releases/latest"
+#ifdef CP_ENABLED
+#define RELEASE_ROOT "https://github.com/Slickmaxim/unbound-dual/releases/"
+#define USER_AGENT "Unbound-Dual-update-check"
+#else
+#define RELEASE_ROOT "https://github.com/bheppe/gpsp-3d/releases/"
 #define USER_AGENT "gpSP-3D-update-check"
+#endif
+#define LATEST_URL RELEASE_ROOT "latest"
 
 static Thread         upd_thr;
 static volatile bool  upd_running, upd_cancel;
@@ -57,16 +66,19 @@ static bool wifi_up(void)
 /* .../releases/tag/v0.1.7 -> "0.1.7" */
 static bool take_tag(const char *loc)
 {
-   const char *t = loc ? strstr(loc, "/tag/") : NULL;
+   static const char prefix[] = RELEASE_ROOT "tag/";
+   const char *t = loc && !strncmp(loc, prefix, sizeof(prefix)-1) ? loc+sizeof(prefix)-1 : NULL;
    size_t n;
    if (!t)
       return false;
-   t += 5;
    if (*t == 'v' || *t == 'V')
       t++;
    n = strcspn(t, "/?#\r\n");
    if (n == 0 || n >= sizeof(upd_latest))
       return false;
+   for (size_t i = 0; i < n; ++i)
+      if ((t[i] < '0' || t[i] > '9') && t[i] != '.') return false;
+   if (t[0] == '.' || t[n-1] == '.') return false;
    memcpy(upd_latest, t, n);
    upd_latest[n] = 0;
    upd_state = ver_cmp(upd_latest, upd_current) > 0 ? UPD_NEWER : UPD_CURRENT;
@@ -114,8 +126,17 @@ static void check_curl(void)
       curl_easy_setopt(c, CURLOPT_USERAGENT, USER_AGENT);
       curl_easy_setopt(c, CURLOPT_NOBODY, 1L);            /* HEAD: only the redirect */
       curl_easy_setopt(c, CURLOPT_FOLLOWLOCATION, 0L);
-      curl_easy_setopt(c, CURLOPT_SSL_VERIFYPEER, 0L);    /* no CA list on the 3DS */
+#ifdef CP_ENABLED
+      struct curl_blob roots = {(void*)release_roots, sizeof(release_roots)-1, CURL_BLOB_NOCOPY};
+      if (curl_easy_setopt(c, CURLOPT_CAINFO_BLOB, &roots) != CURLE_OK) {
+         snprintf(upd_error, sizeof(upd_error), "HTTPS trust configuration unavailable");
+         curl_easy_cleanup(c);
+         goto cleanup;
+      }
+#else
+      curl_easy_setopt(c, CURLOPT_SSL_VERIFYPEER, 0L);
       curl_easy_setopt(c, CURLOPT_SSL_VERIFYHOST, 0L);
+#endif
       curl_easy_setopt(c, CURLOPT_CONNECTTIMEOUT, 8L);
       curl_easy_setopt(c, CURLOPT_TIMEOUT, 15L);
       curl_easy_setopt(c, CURLOPT_NOSIGNAL, 1L);
@@ -134,6 +155,9 @@ static void check_curl(void)
          snprintf(upd_error, sizeof(upd_error), "%.50s", curl_easy_strerror(e));
       curl_easy_cleanup(c);
    }
+#ifdef CP_ENABLED
+cleanup:
+#endif
    curl_global_cleanup();
    socExit();
    free(soc);
@@ -181,8 +205,10 @@ static void upd_main(void *arg)
       upd_state = UPD_CHECKING;
 #ifdef HAVE_CURL
       check_curl();
-#else
+#elif !defined(CP_ENABLED)
       check_httpc();
+#else
+      snprintf(upd_error, sizeof(upd_error), "Verified HTTPS requires libcurl.");
 #endif
       if (upd_state == UPD_CHECKING)
          upd_state = UPD_FAILED;
@@ -249,4 +275,202 @@ void update_check_stop(void)
    if (!upd_running)
       threadFree(upd_thr);
    upd_thr = NULL;
+}
+#if defined(CP_ENABLED) && defined(HAVE_CURL)
+#define UPDATE_LIMIT (16u * 1024u * 1024u)
+struct download_file { FILE *file; size_t bytes; };
+
+static size_t write_asset(char *data, size_t size, size_t count, void *ctx)
+{
+   struct download_file *out = ctx;
+   if (size && count > (UPDATE_LIMIT - out->bytes) / size) return 0;
+   size_t written = fwrite(data, 1, size * count, out->file);
+   out->bytes += written;
+   return written;
+}
+
+static bool download_asset(const char *asset, const char *path)
+{
+   char url[192];
+   snprintf(url, sizeof(url), RELEASE_ROOT "download/v%s/%s", upd_latest, asset);
+   struct download_file out = {fopen(path, "wb"), 0};
+   if (!out.file) {
+      snprintf(upd_error, sizeof(upd_error), "Can't open update file on SD.");
+      return false;
+   }
+   void *soc = memalign(0x1000, SOC_SIZE);
+   bool connected = soc && R_SUCCEEDED(socInit(soc, SOC_SIZE));
+   bool ok = false;
+   if (connected) {
+      if (curl_global_init(CURL_GLOBAL_DEFAULT) == CURLE_OK) {
+         CURL *c = curl_easy_init();
+         if (c) {
+            struct curl_blob roots = {(void*)release_roots, sizeof(release_roots)-1, CURL_BLOB_NOCOPY};
+            CURLcode e = curl_easy_setopt(c, CURLOPT_CAINFO_BLOB, &roots);
+            if (e == CURLE_OK) e = curl_easy_setopt(c, CURLOPT_PROTOCOLS_STR, "https");
+            if (e == CURLE_OK) e = curl_easy_setopt(c, CURLOPT_REDIR_PROTOCOLS_STR, "https");
+            if (e == CURLE_OK) {
+               curl_easy_setopt(c, CURLOPT_URL, url);
+               curl_easy_setopt(c, CURLOPT_USERAGENT, USER_AGENT);
+               curl_easy_setopt(c, CURLOPT_FOLLOWLOCATION, 1L);
+               curl_easy_setopt(c, CURLOPT_MAXREDIRS, 4L);
+               curl_easy_setopt(c, CURLOPT_FAILONERROR, 1L);
+               curl_easy_setopt(c, CURLOPT_CONNECTTIMEOUT, 10L);
+               curl_easy_setopt(c, CURLOPT_TIMEOUT, 90L);
+               curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, write_asset);
+               curl_easy_setopt(c, CURLOPT_WRITEDATA, &out);
+               e = curl_easy_perform(c);
+               long status = 0;
+               curl_easy_getinfo(c, CURLINFO_RESPONSE_CODE, &status);
+               ok = e == CURLE_OK && status == 200 && out.bytes > 0;
+            }
+            if (!ok) snprintf(upd_error, sizeof(upd_error), "Download: %.50s", curl_easy_strerror(e));
+            curl_easy_cleanup(c);
+         }
+         curl_global_cleanup();
+      }
+      socExit();
+   }
+   free(soc);
+   if (fclose(out.file)) ok = false;
+   if (!ok) {
+      remove(path);
+      if (!upd_error[0]) snprintf(upd_error, sizeof(upd_error), "Could not download release.");
+   }
+   return ok;
+}
+
+static bool valid_3dsx(const char *path)
+{
+   uint32_t hdr[8] = {0};
+   FILE *f = fopen(path, "rb");
+   if (!f) return false;
+   bool ok = fread(hdr, sizeof(hdr), 1, f) == 1 && fseek(f, 0, SEEK_END) == 0;
+   long size = ok ? ftell(f) : 0;
+   fclose(f);
+   // Base header, relocation headers, then code/rodata/initialized data.
+   uint32_t header = hdr[1] & 0xffff, reloc = hdr[1] >> 16;
+   return ok && hdr[0] == 0x58534433 && header >= 32 && reloc >= 8 &&
+      hdr[6] >= hdr[7] && hdr[4] > 0 &&
+      (uint64_t)header + 3u*reloc + hdr[4] + hdr[5] + hdr[6] - hdr[7] <= (uint64_t)size;
+}
+#define UNBOUND_TITLE_ID UINT64_C(0x000400000BAC8200)
+
+static bool install_cia(void)
+{
+   static const char stage[] = "sdmc:/3ds/gpsp3d/unbound-dual.update.cia";
+   Result result = amInit();
+   if (R_FAILED(result)) {
+      snprintf(upd_error, sizeof(upd_error), "AM unavailable (%08lX).", (unsigned long)(u32)result);
+      return false;
+   }
+   u64 title_id = UNBOUND_TITLE_ID;
+   AM_TitleInfo installed, candidate;
+   result = AM_GetTitleInfo(MEDIATYPE_SD, 1, &title_id, &installed);
+   if (R_FAILED(result)) {
+      snprintf(upd_error, sizeof(upd_error), "Could not read installed CIA version.");
+      amExit();
+      return false;
+   }
+   if (!download_asset("unbound-dual.cia", stage)) {
+      amExit();
+      return false;
+   }
+   Handle input;
+   result = FSUSER_OpenFileDirectly(&input, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""),
+         fsMakePath(PATH_ASCII, stage + sizeof("sdmc:") - 1), FS_OPEN_READ, 0);
+   if (R_SUCCEEDED(result)) {
+      result = AM_GetCiaFileInfo(MEDIATYPE_SD, &candidate, input);
+      if (R_SUCCEEDED(result) &&
+          (candidate.titleID != title_id || candidate.version <= installed.version)) {
+         snprintf(upd_error, sizeof(upd_error), "Unexpected CIA title or version.");
+         FSFILE_Close(input);
+         remove(stage);
+         amExit();
+         return false;
+      }
+      u64 length = 0;
+      if (R_SUCCEEDED(result)) result = FSFILE_GetSize(input, &length);
+      void *buffer = R_SUCCEEDED(result) ? memalign(0x1000, 64*1024) : NULL;
+      if (R_SUCCEEDED(result) && !buffer) {
+         snprintf(upd_error, sizeof(upd_error), "No memory for CIA installation.");
+      } else if (buffer) {
+         Handle output;
+         result = AM_StartCiaInstall(MEDIATYPE_SD, &output);
+         if (R_SUCCEEDED(result)) {
+            for (u64 offset = 0; offset < length;) {
+               u32 want = length - offset < 64*1024 ? (u32)(length-offset) : 64*1024;
+               u32 got = 0, written = 0;
+               result = FSFILE_Read(input, &got, offset, buffer, want);
+               if (R_FAILED(result) || got != want) {
+                  if (R_SUCCEEDED(result)) result = -1;
+                  break;
+               }
+               result = FSFILE_Write(output, &written, offset, buffer, got, 0);
+               if (R_FAILED(result) || written != got) {
+                  if (R_SUCCEEDED(result)) result = -1;
+                  break;
+               }
+               offset += written;
+            }
+            if (R_SUCCEEDED(result)) result = AM_FinishCiaInstall(output);
+            else AM_CancelCIAInstall(output);
+         }
+         free(buffer);
+      }
+      FSFILE_Close(input);
+   }
+   remove(stage);
+   amExit();
+   if (R_FAILED(result) && !upd_error[0])
+      snprintf(upd_error, sizeof(upd_error), "CIA install failed (%08lX).", (unsigned long)(u32)result);
+   return R_SUCCEEDED(result) && !upd_error[0];
+}
+
+#endif
+
+bool update_install(const char *launch_path)
+{
+#if defined(CP_ENABLED) && defined(HAVE_CURL)
+   if (upd_state != UPD_NEWER) return false;
+   // A completed check owns SOC until its thread exits.
+   if (upd_thr) {
+      threadJoin(upd_thr, U64_MAX);
+      threadFree(upd_thr);
+      upd_thr = NULL;
+   }
+   upd_error[0] = 0;
+   u64 program_id = 0;
+   if (!envIsHomebrew() && R_SUCCEEDED(APT_GetProgramID(&program_id)) && program_id == UNBOUND_TITLE_ID)
+      return install_cia();
+   char stage[544], backup[544];
+   size_t n = launch_path ? strlen(launch_path) : 0;
+   if (n < 12 || n > 512 || strncmp(launch_path, "sdmc:/", 6) ||
+       strcasecmp(launch_path + n - 5, ".3dsx") || !valid_3dsx(launch_path)) {
+      snprintf(upd_error, sizeof(upd_error), "3DSX launch path unavailable.");
+      return false;
+   }
+   snprintf(stage, sizeof(stage), "%s.update", launch_path);
+   snprintf(backup, sizeof(backup), "%s.bak", launch_path);
+   if (!download_asset("unbound-dual.3dsx", stage)) return false;
+   if (!valid_3dsx(stage)) {
+      snprintf(upd_error, sizeof(upd_error), "Invalid 3DSX release.");
+   } else {
+      remove(backup);
+      if (rename(launch_path, backup) == 0) {
+         if (rename(stage, launch_path) == 0) return true;
+         if (rename(backup, launch_path) != 0) {
+            snprintf(upd_error, sizeof(upd_error), "Restore the previous .3dsx.bak.");
+            return false;
+         }
+      }
+      snprintf(upd_error, sizeof(upd_error), "Could not replace 3DSX.");
+   }
+   remove(stage);
+   return false;
+#else
+   (void)launch_path;
+   snprintf(upd_error, sizeof(upd_error), "HTTPS installer unavailable.");
+   return false;
+#endif
 }

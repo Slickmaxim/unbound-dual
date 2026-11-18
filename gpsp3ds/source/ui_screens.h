@@ -59,7 +59,7 @@ typedef struct {
    int depth_pct;          /* 3D strength incl. slider, for the badge */
    int show_stats;
    const char *stat_label[6];
-   char stat_value[6][40];
+   char stat_value[6][96];
    int nstats;
    const char *warning;    /* e.g. "No sound: dspfirm.cdc missing" */
 } ui_hud;

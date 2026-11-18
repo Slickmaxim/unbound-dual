@@ -68,6 +68,8 @@ static bool art_build(struct pd_party_art* a, const struct pd_game* g, const str
     if ((st->slotEmpty >= 0 && !empty) || (st->ball >= 0 && (!ball || !ballPal))) return false;
     a->style = st;
     a->font = font;
+    a->cyrillic = g->cfg && g->cfg->cyrillic &&
+        pd_rom_read(g, 0x081EEF00, a->cyrillicWidths, sizeof(a->cyrillicWidths));
     int w = st->tilesW * 8, h = st->tilesH * 8, size = blob_size(st->gfx);
     for (int f = 0; f < PD_SLOT_FRAMES; f++) {
         const uint8_t* map = f == PD_SLOT_EMPTY ? empty : f == PD_SLOT_NOHP || f == PD_SLOT_NOHP_SELECTED ? noHp : main;
@@ -96,20 +98,21 @@ static bool art_build(struct pd_party_art* a, const struct pd_game* g, const str
     return true;
 }
 
+static struct pd_party_art art;
+static unsigned artRom;
+static bool artBuilt;
+
 const struct pd_party_art* pd_party_art_for(const struct pd_game* g) {
-    static struct pd_party_art art;
-    static unsigned builtRom;
-    static bool built;
     unsigned rom = pd_rom_id(g);
     if (!rom) return NULL;
-    if (rom != builtRom) {
+    if (rom != artRom) {
         art_free(&art);
-        builtRom = rom;
+        artRom = rom;
         const struct pd_party_style* st = g->entry ? g->entry->partyStyle : NULL;
-        built = st && art_build(&art, g, st);
-        if (!built) art_free(&art);
+        artBuilt = st && art_build(&art, g, st);
+        if (!artBuilt) art_free(&art);
     }
-    return built ? &art : NULL;
+    return artBuilt ? &art : NULL;
 }
 
 int pd_party_glyph_row(const struct pd_party_art* a, int glyph, int y) {
@@ -272,15 +275,16 @@ bool pd_type_tag_at(const char* name, int* x, int* y) {
     return false;
 }
 
+static uint32_t* typeSheet;
+static unsigned typeRom;
+
 const uint32_t* pd_type_tags(const struct pd_game* g) {
-    static uint32_t* sheet;
-    static unsigned builtRom;
     unsigned rom = pd_rom_id(g);
     if (!rom) return NULL;
-    if (rom != builtRom) {
-        free(sheet);
-        sheet = NULL;
-        builtRom = rom;
+    if (rom != typeRom) {
+        free(typeSheet);
+        typeSheet = NULL;
+        typeRom = rom;
         // The words are in the picture: English only.
         bool fr = g->kind == PD_GAME_FIRERED, em = g->kind == PD_GAME_EMERALD;
         if ((fr || em) && g->language == 'E') {
@@ -290,9 +294,18 @@ const uint32_t* pd_type_tags(const struct pd_game* g) {
             if (tiles && colors) {
                 uint32_t cols[16];
                 for (int i = 0; i < 16; i++) cols[i] = color_at(colors, i);
-                sheet = sprite(tiles, blob_size(gfx), cols, 128, 128, NULL);
+                typeSheet = sprite(tiles, blob_size(gfx), cols, 128, 128, NULL);
             }
         }
     }
-    return sheet;
+    return typeSheet;
+}
+
+
+// Clear every owning pointer before the companion allocation pool is released.
+// Otherwise reopening a ROM would free the previous session's images again.
+void cp_party_art_reset(void) {
+    art_free(&art);artRom=0;artBuilt=false;
+    free(back.art);free(back.view);memset(&back,0,sizeof(back));
+    free(typeSheet);typeSheet=NULL;typeRom=0;
 }

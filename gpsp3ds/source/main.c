@@ -1,3 +1,14 @@
+#include "fast_forward.h"
+#ifdef CP_ENABLED
+#include "../companion/localization.h"
+#include "../companion/bag_refresh.h"
+#define UPDATE_VERSION "0.2.1"
+#define UPDATE_APP "Unbound Dual"
+#else
+#define ud_tr(s) (s)
+#define UPDATE_VERSION GPSP3D_VERSION
+#define UPDATE_APP "gpSP 3D"
+#endif
 /*
  * gpSP 3D - standalone gpSP frontend for Nintendo 3DS
  *
@@ -157,6 +168,20 @@ static char save_dir[512];
 static char state_dir[512];
 static char old_save_dir[512];  /* where saves went before save_dir/save_ext were set */
 
+#ifdef CP_ENABLED
+extern bool gpsp_guest_idle(void);
+extern void gpsp_guest_set_wait_hook(void (*hook)(void));
+extern bool gpsp_guest_begin(void);
+extern bool gpsp_guest_call(uint32_t,const uint32_t[4],uint32_t*,bool);
+extern void gpsp_guest_end(bool);
+extern bool gpsp_guest_call_stack(uint32_t,const uint32_t[7],uint32_t*);
+extern bool gpsp_guest_write(uint32_t,uint32_t,unsigned);
+static const struct companion_guest item_guest = {
+   gpsp_guest_idle, gpsp_guest_begin, gpsp_guest_call, gpsp_guest_end,
+   gpsp_guest_call_stack, gpsp_guest_write
+};
+#endif
+static char update_launch_path[513];
 static bool game_loaded;
 static bool quit_app;
 static bool frame_ready;
@@ -168,9 +193,10 @@ static size_t sram_loaded;      /* size of the save file that was loaded (0 for 
 
 /* settings (saved in gpsp3d.cfg) */
 static int opt_frameskip = 1; /* 0 = off, 1 = auto (skip drawing a frame core 2 can't finish in time) */
-/* Fast forward (Y): 0 hold, 1 toggle; speed 0 Max, 1 2x, 2 3x, 3 4x */
+/* Fast forward (Y): 0 hold, 1 toggle; speed 1 2x, 2 3x, 3 4x */
 static int opt_ff_toggle = 0;
-static int opt_ff_speed = 0;
+static int opt_ff_speed = 1;
+static int ff_indicator_speed; /* atomically read by the presentation threads */
 static bool ff_on;               /* toggle mode: fast forward is on */
 static int opt_rtc;           /* real-time clock: 0 Auto (the core decides), 1 On, 2 Off */
 static int opt_update = 1;    /* check GitHub for a newer release at startup */
@@ -455,7 +481,7 @@ static void config_load(void)
       else if (!strcmp(line, "ff_toggle"))
          opt_ff_toggle = atoi(eq) ? 1 : 0;
       else if (!strcmp(line, "ff_speed"))
-         opt_ff_speed = clampi(atoi(eq), 0, 3);
+         opt_ff_speed = ff_speed_normalize(atoi(eq));
       else if (!strcmp(line, "rtc"))
          opt_rtc = clampi(atoi(eq), 0, 2);
       else if (!strcmp(line, "keys"))
@@ -499,6 +525,7 @@ static void config_load(void)
 #ifdef CP_ENABLED
       else if (!strcmp(line, "companion_dark")) opt_cp_dark=atoi(eq)!=0;
       else if (!strcmp(line, "companion_filter")) opt_cp_smooth=atoi(eq)!=0;
+      else if (!strcmp(line, "interface_language")) ud_language_set_code(eq);
       else if (!strcmp(line, "companion_rom")) snprintf(opt_cp_rom,sizeof(opt_cp_rom),"%s",eq);
 #endif
       else if (!strcmp(line, "scaling"))
@@ -544,6 +571,7 @@ static void config_save(void)
          opt_slot, opt_smooth, opt_audio_stretch, opt_lowprio, opt_sat, opt_bright, opt_gapfill, opt_crt,
          opt_ff_toggle, opt_ff_speed, opt_overlay, opt_update, opt_rtc, opt_rtc_days, opt_rtc_hours, opt_intro, opt_bottom);
 #ifdef CP_ENABLED
+   fprintf(f,"interface_language=%s\n",ud_language_code());
    fprintf(f,"companion_dark=%d\ncompanion_filter=%d\ncompanion_rom=%s\n",opt_cp_dark,opt_cp_smooth,opt_cp_rom);
 #endif
    /* no menu entries for these: written even when empty so they can be found */
@@ -814,6 +842,8 @@ static void blit_to_top(const u16 *src, unsigned pitch, gfx3dSide_t side)
          }
       }
    }
+   ff_badge_blit(fb,FW,x0,scaled ? 0 : TOP_Y0,W,scaled ? TOP_H : GBA_H,
+                 __atomic_load_n(&ff_indicator_speed,__ATOMIC_RELAXED));
 }
 
 /* ------------------------------------------------------------------ */
@@ -838,6 +868,35 @@ static int opt_smooth_fwd(void);
  * filtering. Every GBA pixel comes out the same size with only a hairline
  * of blending at its edges (plain nearest scaling to 1.5x makes some pixels
  * one screen pixel wide and others two). */
+/* Keep initialization on the CPU. Waiting for a synchronous GSP transfer
+ * here can leave both screens black before frame submission even starts. */
+static C3D_Tex gpu_ff_tex[3];
+static bool gpu_ff_ok;
+static void gpu_ff_init(void)
+{
+   const unsigned width=32, height=16;
+   for (int i=0;i<3;i++) {
+      C3D_Tex *tex=&gpu_ff_tex[i];
+      if (!C3D_TexInit(tex,width,height,GPU_RGB565))
+         return;
+      C3D_TexSetFilter(tex,GPU_NEAREST,GPU_NEAREST);
+      C3D_TexSetWrap(tex,GPU_CLAMP_TO_EDGE,GPU_CLAMP_TO_EDGE);
+      u16 *pixels=tex->data;
+      for (unsigned y=0;y<height;y++) {
+         // Match the vertical flip used by the GPU transfers of game textures.
+         unsigned ty=height-1-y;
+         for (unsigned x=0;x<width;x++) {
+            unsigned tile=(ty>>3)*(width>>3)+(x>>3);
+            unsigned within=(x&1) | ((ty&1)<<1) | ((x&2)<<1) |
+                 ((ty&2)<<2) | ((x&4)<<2) | ((ty&4)<<3);
+            pixels[tile*64+within]=ff_badge_pixel(i+1,x,y);
+         }
+      }
+      C3D_TexFlush(tex);
+   }
+   gpu_ff_ok=true;
+}
+
 /* Screen effects: an 8x8 alpha pattern repeated once per GBA pixel and
  * drawn in black over the picture (rows: scanlines, rows + columns: LCD
  * grid). Texels are stored in the GPU's tiled (Morton) order. */
@@ -973,6 +1032,7 @@ static bool gpu_init(void)
    }
    if (!ctrInitGpu())
       return false;
+   gpu_ff_init();
    if (gpu_up_ok)
    {
       C3D_FrameBegin(0);
@@ -1167,6 +1227,7 @@ static void gpu_submit(void)
    const bool wide = gpu_linked_wide;
    const s16 *r = wide ? rect_wide[opt_display] : rect[opt_display];
    const s16 screen_w = wide ? TOP_W * 2 : TOP_W;
+   const int ff_speed=__atomic_load_n(&ff_indicator_speed,__ATOMIC_RELAXED);
    int uploads = gpu_staged_uploads, eyes = (stereo_mode && !wide) ? 2 : 1, e;
    /* The 3x-wide pass is retained for Sharp scaling on wide 2D output. */
    bool sharp3 = opt_smooth == 0 && opt_display != 0 && gpu_wup_ok;
@@ -1245,6 +1306,14 @@ static void gpu_submit(void)
          /* over the whole screen, at screen depth in 3D */
          ctrActivateTexture(&gpu_ov_tex);
          ctrAddRectEx(0xFFFFFFFF, 0, 0, screen_w, TOP_H, 0, 0, gpu_ov_w, gpu_ov_h, 0);
+         ctrFlushBatch();
+      }
+      if (ff_speed && gpu_ff_ok) {
+         int sx=wide ? 2 : 1;
+         ctrSetViewportSize(screen_w,TOP_H,true);
+         ctrActivateTexture(&gpu_ff_tex[ff_speed_normalize(ff_speed)-1]);
+         ctrAddRectEx(0xFFFFFFFF,screen_w-(FF_BADGE_W+4)*sx,4,
+                      FF_BADGE_W*sx,FF_BADGE_H,0,0,FF_BADGE_W,FF_BADGE_H,0);
          ctrFlushBatch();
       }
    }
@@ -2007,6 +2076,9 @@ static bool state_load(void)
    }
    n = fread(state_buf, 1, state_size, f);
    fclose(f);
+#ifdef CP_ENABLED
+   companion_item_cancel();
+#endif
    return n == state_size && retro_unserialize(state_buf, state_size);
 }
 
@@ -2039,8 +2111,8 @@ static char companion_rom_path[700];
 static bool companion_attempted;
 static void companion_progress(const char*stage,unsigned percent,void*ctx){
    (void)ctx;char text[96];
-   if(percent<=100)snprintf(text,sizeof(text),"%s: %u%%",stage,percent);
-   else snprintf(text,sizeof(text),"%s...",stage);
+   if(percent<=100)snprintf(text,sizeof(text),"%s: %u%%",ud_tr(stage),percent);
+   else snprintf(text,sizeof(text),"%s...",ud_tr(stage));
    scr_message("Preparing Unbound data",text,"ROM and cache status are shown below.");ui_present();
 }
 static void companion_prepare(void) {
@@ -2248,7 +2320,7 @@ static void browse_draw(int sel, int top)
       static char notice[64];
       notice[0] = 0;
       if (opt_update && update_state() == UPD_NEWER)
-         snprintf(notice, sizeof(notice), "gpSP 3D %s is out: update in Universal-Updater", update_latest());
+         snprintf(notice, sizeof(notice), UPDATE_APP " %s is out. Open System to update.", update_latest());
       scr_browser_notice = notice[0] ? notice : NULL;
    }
    scr_browser(cur_dir + 5, names, isdir, n_entries, sel, top);
@@ -2536,9 +2608,11 @@ static char load_err[200];
 
 static void unzip_message(uint32_t size)
 {
-   char body[96];
-   snprintf(body, sizeof(body), "%s\n%.1f MB, once: starting it again is instant.",
-            rom_name, size / 1048576.0);
+   char body[224];
+   snprintf(body, sizeof(body), "%.96s\n", rom_name);
+   size_t used = strlen(body);
+   snprintf(body + used, sizeof(body) - used, ud_tr("%.1f MB, once: starting it again is instant."),
+            size / 1048576.0);
    scr_message("Unzipping the game...", body, NULL);
    ui_present();
 }
@@ -2814,6 +2888,77 @@ static void ui_wait_message(const char *title, const char *body)
    }
 }
 
+#ifdef CP_ENABLED
+static bool install_update_from_ui(void)
+{
+   scr_message(ud_tr("Install update"), ud_tr("Downloading from GitHub..."), NULL);
+   ui_present();
+   if (!update_install(update_launch_path))
+      return false;
+   ui_wait_message(ud_tr("Update installed"), ud_tr("Reopen Unbound Dual to use the new version."));
+   quit_app = true;
+   return true;
+}
+
+static void startup_update_prompt(void)
+{
+   if (!opt_update)
+      return;
+
+   // The check has been running since configuration load. Give it a bounded
+   // window to finish, with an option to go straight into the game.
+   if (update_state() == UPD_CHECKING) {
+      u64 started = svcGetSystemTick();
+      scr_message(ud_tr("Check for updates"), ud_tr("Checking..."), ud_tr("B or tap to play now"));
+      ui_present();
+      while (aptMainLoop() && update_state() == UPD_CHECKING &&
+             svcGetSystemTick() - started < 16ULL * SYSCLOCK_ARM11) {
+         hidScanInput();
+         if (hidKeysDown() & (KEY_B | KEY_TOUCH))
+            return;
+         gspWaitForVBlank();
+      }
+   }
+   if (!aptMainLoop() || update_state() != UPD_NEWER)
+      return;
+
+   char version[64];
+   snprintf(version, sizeof(version), ud_tr("Version %s is available."), update_latest());
+   scr_message(ud_tr("Unbound Dual update"), version, NULL);
+   ui_rrect(24, 163, 128, 38, 8, UI_RGB(38, 48, 66));
+   ui_rrect(168, 163, 128, 38, 8, UI_RGB(35, 88, 164));
+   ui_text_center(&ui_font_body, 88, 174, ud_tr("B  Later"), UI_RGB(236, 239, 244));
+   ui_text_center(&ui_font_body, 232, 174, ud_tr("A  Update"), UI_RGB(236, 239, 244));
+   ui_present();
+
+   // Require a fresh press so a button held in the ROM picker won't install.
+   hidScanInput();
+   while (aptMainLoop()) {
+      hidScanInput();
+      u32 down = hidKeysDown();
+      if (down & KEY_B)
+         return;
+      bool install = (down & KEY_A) != 0;
+      if (down & KEY_TOUCH) {
+         touchPosition touch;
+         hidTouchRead(&touch);
+         if (touch.py >= 163 && touch.py < 201) {
+            if (touch.px >= 24 && touch.px < 152)
+               return;
+            if (touch.px >= 168 && touch.px < 296)
+               install = true;
+         }
+      }
+      if (install) {
+         if (!install_update_from_ui())
+            ui_wait_message(ud_tr("Update failed"), update_error());
+         return;
+      }
+      gspWaitForVBlank();
+   }
+}
+#endif
+
 /* Show the paused game's last frame again with the current 3D / colour /
  * size settings, so changes in the menu can be seen right away. */
 static void preview_refresh(void)
@@ -2851,7 +2996,7 @@ enum {
    /* Game */
    M_RESUME, M_SLOT, M_SAVE, M_LOAD, M_RESET, M_GUIDE, M_LIST, M_QUIT,
    /* Display */
-   M_CP_DARK, M_CP_FILTER, M_CP_ROM, M_SIZE, M_SMOOTH, M_CRT, M_OVERLAY, M_CSTYLE, M_SAT, M_BRIGHT, M_COLRESET,
+   M_CP_DARK, M_CP_FILTER, M_CP_LANGUAGE, M_CP_ROM, M_SIZE, M_SMOOTH, M_CRT, M_OVERLAY, M_CSTYLE, M_SAT, M_BRIGHT, M_COLRESET,
    /* 3D */
    M_3D, M_3DPCT, M_3DMETHOD, M_3DSMART, M_3DSTYLE, M_L0, M_L1, M_L2, M_L3, M_SPRITE, M_FOCUS, M_TILT, M_GAPFILL, M_PERGAME, M_3DRESET,
    /* Speed */
@@ -2859,15 +3004,15 @@ enum {
    /* Keys */
    M_KPERGAME, M_K0, M_K1, M_K2, M_K3, M_K4, M_K5, M_K6, M_K7, M_K8, M_K9, M_KRESET,
    /* System */
-   M_CORE2, M_GPU, M_PRIO, M_C2TEST, M_RTC, M_RTCDAYS, M_RTCHOURS, M_INTRO, M_BOTTOM, M_UPDATE, M_SAVEINFO, M_ABOUT, M_CREDITS,
+   M_CORE2, M_GPU, M_PRIO, M_C2TEST, M_RTC, M_RTCDAYS, M_RTCHOURS, M_INTRO, M_BOTTOM, M_UPDATE, M_INSTALL_UPDATE, M_SAVEINFO, M_ABOUT, M_CREDITS,
    M_HDR
 };
 
 static const char *const menu_tabs[] = { "Game", "Display", "3D", "Speed", "Keys", "System" };
 #define MENU_NTABS 6
-#define MENU_MAXROWS 16
+#define MENU_MAXROWS 18
 
-typedef struct { int id; ui_row r; const char *help; char vbuf[24]; } mrow;
+typedef struct { int id; ui_row r; const char *help; char vbuf[64]; } mrow;
 static mrow mrows[MENU_MAXROWS];
 static int  mrow_n;
 static char core2_result[80];
@@ -2879,8 +3024,8 @@ static void mrow_add(int id, int kind, const char *label, const char *help)
    memset(m, 0, sizeof(*m));
    m->id = id;
    m->r.kind = kind;
-   m->r.label = label;
-   m->help = help;
+   m->r.label = ud_tr(label);
+   m->help = ud_tr(help);
 }
 
 static void mrow_slider(int id, const char *label, int v, int lo, int hi, const char *fmt, const char *help)
@@ -2888,7 +3033,7 @@ static void mrow_slider(int id, const char *label, int v, int lo, int hi, const 
    mrow *m = &mrows[mrow_n];
    mrow_add(id, ROW_SLIDER, label, help);
    m->r.v = v; m->r.vmin = lo; m->r.vmax = hi;
-   snprintf(m->vbuf, sizeof(m->vbuf), fmt, v);
+   snprintf(m->vbuf, sizeof(m->vbuf), ud_tr(fmt), v);
    m->r.value = m->vbuf;
 }
 
@@ -2896,7 +3041,7 @@ static void mrow_choice(int id, const char *label, const char *val, const char *
 {
    mrow *m = &mrows[mrow_n];
    mrow_add(id, ROW_CHOICE, label, help);
-   snprintf(m->vbuf, sizeof(m->vbuf), "%s", val);
+   snprintf(m->vbuf, sizeof(m->vbuf), "%s", ud_tr(val));
    m->r.value = m->vbuf;
 }
 
@@ -2916,7 +3061,7 @@ static void menu_build(int tab)
       case 0:
       {
          char slot[24];
-         snprintf(slot, sizeof(slot), "%d  %s", opt_slot, state_exists(opt_slot) ? "(used)" : "(empty)");
+         snprintf(slot, sizeof(slot), "%d  %s", opt_slot, ud_tr(state_exists(opt_slot) ? "(used)" : "(empty)"));
          mrow_add(M_RESUME, ROW_ACTION, "Resume", "Back to the game. B does the same.");
          mrow_choice(M_SLOT, "State slot", slot, "Which slot Save / Load state use.\nSlot 0 is the one RetroArch uses.");
          mrow_add(M_SAVE, ROW_ACTION, "Save state", "Save the game exactly as it is now\nto the selected slot.");
@@ -2940,7 +3085,7 @@ static void menu_build(int tab)
          mrows[mrow_n - 1].r.danger = 1;
          {
             static char sv[24];
-            snprintf(sv, sizeof(sv), "slot %d", opt_slot);
+            snprintf(sv, sizeof(sv), ud_tr("slot %d"), opt_slot);
             mrows[2].r.value = sv;
             mrows[3].r.value = sv;
          }
@@ -2948,6 +3093,7 @@ static void menu_build(int tab)
       }
       case 1:
 #ifdef CP_ENABLED
+         mrow_choice(M_CP_LANGUAGE,"Interface language",ud_language_name(),"English / Español / Русский. Applies to menus;\nthe game keeps its language.");
          mrow_choice(M_CP_DARK,"Companion theme",opt_cp_dark?"Dark":"Light","PokeDaisy interface colours.\nGame sprites keep their original colours.");
          mrow_choice(M_CP_FILTER,"Companion filtering",opt_cp_smooth?"Smooth":"Nearest","Scaling for the bottom screen's art.\nNearest keeps pixels free of blending.");
 #endif
@@ -2977,7 +3123,7 @@ static void menu_build(int tab)
             if (!opt_overlay)
                snprintf(ov_help, sizeof(ov_help), "A 400x240 PNG drawn over the game (e.g. a\nbezel): sdmc:/3ds/gpsp3d/overlay.png");
             else if (gpu_ov_have)
-               snprintf(ov_help, sizeof(ov_help), "Showing %.70s", gpu_ov_from + 5);
+               snprintf(ov_help, sizeof(ov_help), ud_tr("Showing %.70s"), gpu_ov_from + 5);
             else
                snprintf(ov_help, sizeof(ov_help), "No picture found. Put a 400x240 PNG in\nsdmc:/3ds/gpsp3d/overlay.png");
             if (!GPU_ACTIVE)
@@ -2985,9 +3131,9 @@ static void menu_build(int tab)
             mrow_choice(M_OVERLAY, "Overlay", opt_overlay ? "On" : "Off", ov_help);
          }
          mrow_choice(M_CSTYLE, "Color style", cc_names[opt_colorcorr], "Original: colours as the game made them.\nGBA soft / GBA screen: like the old GBA LCD.");
-         mrow_slider(M_SAT, "Saturation", opt_sat, 50, 150, "%d%%", "More or less colourful.\n100% = as the game drew it.");
+         mrow_slider(M_SAT, "Saturation", opt_sat, 50, 150, "%d%%", ud_tr("More or less colourful.\n100% = as the game drew it."));
          mrow_slider(M_BRIGHT, "Brightness", opt_bright, 70, 130, "%d%%", "Lifts or darkens the mid-tones;\nblack and white stay as they are.");
-         mrow_add(M_COLRESET, ROW_ACTION, "Reset colours", "Original style, 100% saturation and\nbrightness.");
+         mrow_add(M_COLRESET, ROW_ACTION, "Reset colours", ud_tr("Original style, 100% saturation and\nbrightness."));
          break;
       case 2:
       {
@@ -2999,7 +3145,7 @@ static void menu_build(int tab)
                "Needs System > Draw on core 2 On.");
          if (!has_3d_screen)
             mrows[mrow_n - 1].r.disabled = 1;
-         mrow_slider(M_3DPCT, "Strength", d3.pct, 0, 200, "%d%%", "How far the layers separate, on top of\nthe 3D slider. 100% = normal.");
+         mrow_slider(M_3DPCT, "Strength", d3.pct, 0, 200, "%d%%", ud_tr("How far the layers separate, on top of\nthe 3D slider. 100% = normal."));
          mrow_choice(M_3DMETHOD, "Method", d3.fast ? "Experimental" : "Normal", d3.fast ?
                "Experimental: draw once, move each layer's\npixels. Usually slower on a 3DS." :
                "Normal: draw each eye separately.\nRecommended.");
@@ -3022,7 +3168,7 @@ static void menu_build(int tab)
          mrow_toggle(M_GAPFILL, "Fill gaps", opt_gapfill, "Hide thin seams where two layers slide\napart (pink/black lines, e.g. Pokemon).");
          mrow_choice(M_PERGAME, "Settings for", d3_pergame ? "This game" : "All games",
                "This game: keep these 3D settings just\nfor this game (saved per game).");
-         mrow_add(M_3DRESET, ROW_ACTION, "Reset 3D", "Back to Classic at 100%, no sprite pop\nor focus.");
+         mrow_add(M_3DRESET, ROW_ACTION, "Reset 3D", ud_tr("Back to Classic at 100%, no sprite pop\nor focus."));
          {
             int i;
             for (i = 1; i < mrow_n; i++)
@@ -3035,12 +3181,12 @@ static void menu_build(int tab)
          mrow_choice(M_SKIP, "Frame skip", opt_frameskip ? "Auto" : "Off", "Auto: if a frame can't be drawn in time,\nskip drawing it so the game stays at 60.");
          mrow_choice(M_ASTRETCH, "Audio when slow", opt_audio_stretch ? "Stretch" : "Normal", "Stretch: if the game runs slow, slow the\nsound down instead of crackling.");
          {
-            static const char *speeds[4] = { "Max", "2x", "3x", "4x" };
-            static char ffh[96];
-            snprintf(ffh, sizeof(ffh), "Hold: fast while the button is held.\nToggle: it turns it on/off. Button: %s", keys_ff_names());
+            static const char *speeds[3] = { "2x", "3x", "4x" };
+            static char ffh[224];
+            snprintf(ffh, sizeof(ffh), ud_tr("Hold: fast while the button is held.\nToggle: it turns it on/off. Button: %s"), keys_ff_names());
             mrow_choice(M_FFMODE, "Fast forward", opt_ff_toggle ? "Toggle" : "Hold", ffh);
-            mrow_choice(M_FFSPEED, "Fast forward speed", speeds[opt_ff_speed],
-                        "Max: as fast as the 3DS can go (light\ngames: 2-4x on Old 3DS, more on New).");
+            mrow_choice(M_FFSPEED, "Fast forward speed", speeds[opt_ff_speed-1],
+                        "Choose 2x, 3x or 4x. Actual speed depends\non the game and console.");
          }
          break;
       case 4:
@@ -3062,7 +3208,7 @@ static void menu_build(int tab)
       }
       case 5:
       {
-         static char about[40];
+         static char about[96];
          mrow_toggle(M_CORE2, "Draw on core 2", video_thread_enabled, "Draw the picture on the 3DS's second\nCPU core. Needed for 3D, faster.");
          mrow_toggle(M_GPU, "GPU display", opt_gpu, "Let the 3DS graphics chip scale and\nshow the picture.");
          mrow_choice(M_PRIO, "Core 2 priority", opt_lowprio ? "Low" : "High", "High (recommended): drawing first.\nLow: system services on core 2 first.");
@@ -3075,7 +3221,7 @@ static void menu_build(int tab)
             , "Companion"
 #endif
          };
-            static char clock_help[96];
+            static char clock_help[192];
             mrow_choice(M_RTC, "Real-time clock", rtc_names[opt_rtc],
                   "On: for Pokemon hacks that say the internal\nbattery has run dry. Applies when a game starts.");
             {
@@ -3085,7 +3231,7 @@ static void menu_build(int tab)
                char when[40] = "";
                if (tm)
                   strftime(when, sizeof(when), "%a %b %d %Y, %I:%M %p", tm);
-               snprintf(clock_help, sizeof(clock_help), "Game clock: %s\n(if the 3DS clock is wrong, set it right here)", when);
+               snprintf(clock_help, sizeof(clock_help), ud_tr("Game clock: %s\n(if the 3DS clock is wrong, set it right here)"), when);
             }
             mrow_slider(M_RTCDAYS, "Clock adjust: days", opt_rtc_days, -365, 365, "%+d", clock_help);
             mrow_slider(M_RTCHOURS, "Clock adjust: hours", opt_rtc_hours, -23, 23, "%+d", clock_help);
@@ -3099,22 +3245,27 @@ static void menu_build(int tab)
             mrow_choice(M_BOTTOM, "Bottom screen", bottom_names[opt_bottom],
                   "While playing. Performance: speed and timing.\nOff: backlight off after 10 s, a tap wakes it.");
             {
-               static char upd_help[96];
+               static char upd_help[224];
                int st = update_state();
                snprintf(upd_help, sizeof(upd_help), "%s",
-                  !opt_update     ? "On: when gpSP 3D starts, ask GitHub if a\nnew version is out (needs Wi-Fi)." :
+                  !opt_update     ? "On: at startup, ask GitHub if a\nnew version is out (needs Wi-Fi)." :
                   st == UPD_NEWER ? "" :
                   st == UPD_CURRENT ? "You have the latest version." :
                   st == UPD_CHECKING ? "Checking..." :
-                  st == UPD_OFFLINE ? "No Wi-Fi when gpSP 3D started, so it\ndidn't check. Checks again next start." :
+                  st == UPD_OFFLINE ? "No Wi-Fi at startup, so it\ndidn't check. Checks again next start." :
                   st == UPD_FAILED  ? "" :
-                                      "Checks when gpSP 3D starts (needs Wi-Fi).");
+                                      "Checks at startup (needs Wi-Fi).");
                if (opt_update && st == UPD_FAILED)
-                  snprintf(upd_help, sizeof(upd_help), "Couldn't reach GitHub (%s:\n%.50s). Off/On retries.",
+                  snprintf(upd_help, sizeof(upd_help), ud_tr("Couldn't reach GitHub (%s:\n%.50s). Off/On retries."),
                            update_method(), update_error());
                if (opt_update && st == UPD_NEWER)
-                  snprintf(upd_help, sizeof(upd_help), "Version %s is out. Update it in\nUniversal-Updater (or FBI, see GitHub).", update_latest());
+                  snprintf(upd_help, sizeof(upd_help), ud_tr("Version %s is available."), update_latest());
                mrow_choice(M_UPDATE, "Check for updates", opt_update ? "On" : "Off", upd_help);
+#ifdef CP_ENABLED
+               if (opt_update && st == UPD_NEWER)
+                  mrow_add(M_INSTALL_UPDATE, ROW_ACTION, "Install update",
+                           "Download and install the Unbound Dual release.");
+#endif
             }
          }
          if (save_path[0])
@@ -3132,11 +3283,11 @@ static void menu_build(int tab)
                                         ra ? "RetroArch folder" : "Next to the game";
          }
          if (update_state() == UPD_NEWER)
-            snprintf(about, sizeof(about), "%s  (%s is out)", GPSP3D_VERSION, update_latest());
+            snprintf(about, sizeof(about), ud_tr("%s  (%s is out)"), UPDATE_VERSION, update_latest());
          else
             snprintf(about, sizeof(about), FRONTEND_NAME
 #ifdef CP_ENABLED
-                     " v0.1.1"
+                     " v" UPDATE_VERSION
 #else
                      " " GPSP3D_VERSION
 #endif
@@ -3207,6 +3358,14 @@ static const char *menu_change(int id, int dir, bool has_value, int value)
                        if (opt_overlay && !gpu_ov_have) return "No overlay.png in sdmc:/3ds/gpsp3d/";
                        break;
 #ifdef CP_ENABLED
+      case M_CP_LANGUAGE:
+         {
+            int language = ud_language_get();
+            CYCLEV(language, UD_LANGUAGE_COUNT);
+            ud_language_set(language);
+         }
+         companion_invalidate();
+         break;
       case M_CP_DARK: opt_cp_dark^=1;companion_options(opt_cp_dark,opt_cp_smooth);break;
       case M_CP_FILTER: opt_cp_smooth^=1;companion_options(opt_cp_dark,opt_cp_smooth);break;
 #endif
@@ -3286,7 +3445,7 @@ static const char *menu_change(int id, int dir, bool has_value, int value)
          keys_save_game();
          break;
       }
-      case M_FFSPEED:  CYCLEV(opt_ff_speed, 4); break;
+      case M_FFSPEED:  opt_ff_speed = ff_speed_cycle(opt_ff_speed, dir); break;
       case M_RTC:      CYCLEV(opt_rtc, 3); break;
       case M_RTCDAYS:  STEP(opt_rtc_days, -365, 365, 1); rtc_offset_apply(); break;
       case M_RTCHOURS: STEP(opt_rtc_hours, -23, 23, 1); rtc_offset_apply(); break;
@@ -3297,7 +3456,7 @@ static const char *menu_change(int id, int dir, bool has_value, int value)
          if (opt_bottom == 3) guide_shown = false;
 #endif
          break;
-      case M_UPDATE:   opt_update ^= 1; if (opt_update) update_check_start(GPSP3D_VERSION); break;
+      case M_UPDATE:   opt_update ^= 1; if (opt_update) update_check_start(UPDATE_VERSION); break;
       case M_CORE2:
          opt_core2 ^= 1;
          core2_apply();
@@ -3359,7 +3518,7 @@ static bool game_menu(void)
 {
    static int tab, sel_of_tab[MENU_NTABS] = { 0 }, scroll_of_tab[MENU_NTABS];
    static ui_row rows[MENU_MAXROWS];
-   char note[64] = "";
+   char note[128] = "";
    int note_ok = 1, i;
    bool redraw = true, touch_down = true;   /* the touch that opened the menu */
    int drag_row = -1, touch_y0 = 0, touch_moved = 0;
@@ -3533,6 +3692,13 @@ static bool game_menu(void)
             switch (r->id)
             {
 #ifdef CP_ENABLED
+               case M_INSTALL_UPDATE:
+                  sram_flush(true);
+                  if (install_update_from_ui())
+                     goto resume;
+                  snprintf(note, sizeof(note), "%s", update_error());
+                  note_ok = 0;
+                  break;
                case M_CP_ROM:
                {
                   char current_rom[sizeof(rom_path)];memcpy(current_rom,rom_path,sizeof(rom_path));
@@ -3550,10 +3716,10 @@ static bool game_menu(void)
                   goto resume;
                case M_SAVE:
                   if (state_save())
-                     snprintf(note, sizeof(note), "Saved to slot %d", opt_slot);
+                     snprintf(note, sizeof(note), ud_tr("Saved to slot %d"), opt_slot);
                   else
                   {
-                     snprintf(note, sizeof(note), "Could not save to slot %d", opt_slot);
+                     snprintf(note, sizeof(note), ud_tr("Could not save to slot %d"), opt_slot);
                      note_ok = 0;
                   }
                   break;
@@ -3563,7 +3729,7 @@ static bool game_menu(void)
                      config_save();
                      goto resume;
                   }
-                  snprintf(note, sizeof(note), "Could not load slot %d", opt_slot);
+                  snprintf(note, sizeof(note), ud_tr("Could not load slot %d"), opt_slot);
                   note_ok = 0;
                   break;
                case M_RESET:
@@ -3571,12 +3737,15 @@ static bool game_menu(void)
                   if (confirm_id != r->id)
                   {
                      confirm_id = r->id;
-                     snprintf(note, sizeof(note), "Press A / tap again to %s", r->id == M_RESET ? "reset" : "quit");
+                     snprintf(note, sizeof(note), ud_tr("Press A / tap again to %s"), ud_tr(r->id == M_RESET ? "reset" : "quit"));
                      note_ok = 0;
                      break;
                   }
                   if (r->id == M_RESET)
                   {
+#ifdef CP_ENABLED
+                     companion_item_cancel();
+#endif
                      retro_reset();
                      goto resume;
                   }
@@ -3614,7 +3783,7 @@ static bool game_menu(void)
                   d3.pct = 100; d3.style = 0; d3.sprite = 0; d3.focus = 0; d3.smart = 1; d3.fast = 0; d3.tilt = 0;
                   d3_set_style(0);
                   preview_later(false);
-                  snprintf(note, sizeof(note), "3D back to Classic, 100%%");
+                  snprintf(note, sizeof(note), ud_tr("3D back to Classic, 100%%"));
                   break;
             }
          }
@@ -3812,6 +3981,7 @@ static void audio_stretch_update(float work_ms)
 
 static void run_game(void)
 {
+   __atomic_store_n(&ff_indicator_speed,0,__ATOMIC_RELAXED);
    u64 t_frame0 = svcGetSystemTick(), t_win0 = t_frame0;
    u64 t_core = 0, t_wait = 0, t_rest = 0;
    u64 c2_draw_us = 0, c2_copy_us = 0, c2_wait_us = 0;
@@ -3825,6 +3995,7 @@ static void run_game(void)
    int cp_touch_x = 0, cp_touch_y = 0;
    u64 cp_last_update = 0;
    u64 cp_work_ticks = (u64)(TICKS_PER_MS * 3);
+   struct cp_bag_refresh cp_bag={0};
 #endif
 
    {
@@ -3857,7 +4028,7 @@ static void run_game(void)
    while (aptMainLoop())
    {
       u64 t0, t1, t2;
-      bool drawn;
+      bool drawn, ff;
       hidScanInput();
       keys_held = hidKeysHeld();
       gyro_update();
@@ -3914,6 +4085,7 @@ static void run_game(void)
       }
       if (open_menu)
       {
+         __atomic_store_n(&ff_indicator_speed,0,__ATOMIC_RELAXED);
          frame_present_deferred();
          guide_save_pos();
          if (!game_menu())
@@ -3921,6 +4093,7 @@ static void run_game(void)
 #ifdef CP_ENABLED
          companion_prepare();
          cp_redraw = opt_bottom == 3;
+         cp_bag=(struct cp_bag_refresh){0};
 #endif
          guide_invalidate();   /* the menu drew over the canvas */
          guide_dirty = guide_shown;
@@ -3935,7 +4108,17 @@ static void run_game(void)
          continue;
       }
 
+      if (opt_ff_toggle) {
+         if (hidKeysDown() & keys_ff_mask()) ff_on=!ff_on;
+         ff=ff_on;
+      } else ff=(keys_held & keys_ff_mask())!=0;
+      __atomic_store_n(&ff_indicator_speed,ff ? opt_ff_speed : 0,__ATOMIC_RELAXED);
+
       t0 = svcGetSystemTick();
+#ifdef CP_ENABLED
+      if (companion_item_tick())
+         gpsp_guest_set_wait_hook(companion_item_at_wait);
+#endif
       frame_ready = false;
       /* not while core 2 may still be drawing a deferred frame */
       if (!(skip_heavy && skip_phase > 0))
@@ -3946,6 +4129,9 @@ static void run_game(void)
       }
       drawn = frame_skip_plan();
       retro_run();
+#ifdef CP_ENABLED
+      gpsp_guest_set_wait_hook(NULL);
+#endif
       if (skip_phase == 0)   /* after the last skipped frame: show the drawn one */
          frame_present_deferred();
       t1 = svcGetSystemTick();
@@ -3966,26 +4152,12 @@ static void run_game(void)
          emu_ms_avg += (emu - emu_ms_avg) * 0.05f;
       }
 
-      /* Fast forward (Y): run extra frames without drawing them or playing
-       * their sound. They come after this frame's timing is measured, so
-       * frame skip and audio stretch see a normal frame. The loop is still
-       * paced by the sound, so N-1 extra frames make it N times as fast; at
-       * Max it fills the frame's time with as many as fit. */
+      /* N-1 extra silent frames make the selected N-times speed. */
       {
-         bool ff;
-         if (opt_ff_toggle)
-         {
-            if (hidKeysDown() & keys_ff_mask())
-               ff_on = !ff_on;
-            ff = ff_on;
-         }
-         else
-            ff = (keys_held & keys_ff_mask()) != 0;
          if (ff)
          {
-            int extra = 0, want = opt_ff_speed ? opt_ff_speed : 15;
-            u64 budget = t0 + (u64)(TICKS_PER_MS * 15.5);
-            while (extra < want && (opt_ff_speed || svcGetSystemTick() < budget))
+            int extra = 0, want = opt_ff_speed;
+            while (extra < want)
             {
                gpsp_frontend_skip = 1;
                retro_run();
@@ -4004,18 +4176,27 @@ static void run_game(void)
 #ifdef CP_ENABLED
       if (opt_bottom == 3 && !guide_shown) {
          u64 begin = svcGetSystemTick();
-         // Spend idle time before audio pacing; when saturated, refresh no
-         // more than once a second. Taps still receive an immediate response.
+         uint64_t begin_us=begin/(SYSCLOCK_ARM11/1000000ULL);
+         bool bag_open=companion_bag_open();
+         bool bag_due=cp_bag_refresh_due(&cp_bag,bag_open,begin_us);
+         // Bag input redrawing is capped at 30 Hz, with RAM reads on the
+         // existing slower timer. Clean frames perform no display work.
          bool spare = begin + cp_work_ticks < t0 + (u64)(TICKS_PER_MS * 16.0);
          bool overdue = begin - cp_last_update >= SYSCLOCK_ARM11;
-         if (cp_redraw || spare || overdue) {
-            bool changed = companion_update(begin / (SYSCLOCK_ARM11 / 1000000ULL));
+         if (cp_redraw || (bag_open ? bag_due : spare || overdue)) {
+            bool changed = companion_update(begin_us);
             if (cp_redraw || changed) {
-               companion_draw(ui_canvas);
-               ui_present();
+               int rect[4];
+               if (!cp_redraw && companion_draw_bag_scroll(ui_canvas,rect))
+                  ui_present_region(rect);
+               else {
+                  companion_draw(ui_canvas);
+                  ui_present();
+               }
                cp_work_ticks = svcGetSystemTick() - begin;
                unsigned us = (unsigned)(cp_work_ticks / (SYSCLOCK_ARM11 / 1000000ULL));
-               companion_feedback(us);
+               if (bag_open) cp_bag_refresh_presented(&cp_bag,begin_us,us);
+               else companion_feedback(us);
                cp_last_update = begin;
                cp_redraw = false;
             }
@@ -4102,32 +4283,32 @@ static void run_game(void)
             if (ff_shown)
             {
                static char ffw[48];
-               snprintf(ffw, sizeof(ffw), ">> Fast forward  %.1fx",
+               snprintf(ffw, sizeof(ffw), ud_tr(">> Fast forward  %.1fx"),
                         frames ? (frames + ff_extra_win) / (double)frames : 1.0);
                h.warning = ffw;
             }
             h.stat_label[0] = "Main core";
-            snprintf(h.stat_value[0], 40, "emulate %.1f ms   show %.1f ms",
+            snprintf(h.stat_value[0], sizeof(h.stat_value[0]), ud_tr("emulate %.1f ms   show %.1f ms"),
                   (t_core - t_blit_acc) / TICKS_PER_MS / frames - c2_wait_us / 1000.0 / frames,
                   (t_blit_acc / TICKS_PER_MS + present_us_acc / 1000.0) / dw);
             h.stat_label[1] = "Waits";
-            snprintf(h.stat_value[1], 40, "%.1f ms for core 2", c2_wait_us / 1000.0 / frames);
+            snprintf(h.stat_value[1], sizeof(h.stat_value[1]), ud_tr("%.1f ms for core 2"), c2_wait_us / 1000.0 / frames);
             h.stat_label[2] = "Core 2";
             if (video_thread_enabled)
-               snprintf(h.stat_value[2], 40, "draw %.1f ms   copy %.1f ms",
+               snprintf(h.stat_value[2], sizeof(h.stat_value[2]), ud_tr("draw %.1f ms   copy %.1f ms"),
                      c2_draw_us / 1000.0 / dw, c2_copy_us / 1000.0 / dw);
             else
-               snprintf(h.stat_value[2], 40, "off (drawing on main core)");
+               snprintf(h.stat_value[2], sizeof(h.stat_value[2]), "off (drawing on main core)");
             h.stat_label[3] = "Display";
             if (skip_heavy)
-               snprintf(h.stat_value[3], 40, "%s, drawing 1 of %d frames", GPU_ACTIVE ? "GPU" : "CPU", skip_count + 1);
+               snprintf(h.stat_value[3], sizeof(h.stat_value[3]), ud_tr("%s, drawing 1 of %d frames"), GPU_ACTIVE ? "GPU" : "CPU", skip_count + 1);
             else
-               snprintf(h.stat_value[3], 40, "%s, every frame", GPU_ACTIVE ? "GPU" : "CPU copy");
+               snprintf(h.stat_value[3], sizeof(h.stat_value[3]), ud_tr("%s, every frame"), GPU_ACTIVE ? "GPU" : ud_tr("CPU copy"));
             h.stat_label[4] = "Audio";
-            snprintf(h.stat_value[4], 40, "gaps %lu/s   speed %.0f%%",
+            snprintf(h.stat_value[4], sizeof(h.stat_value[4]), ud_tr("gaps %lu/s   speed %.0f%%"),
                   (unsigned long)(audio_underruns - prev_underruns), audio_rate_cur * 100.0 / AUDIO_RATE);
             h.stat_label[5] = "Emulator";
-            snprintf(h.stat_value[5], 40, "%.38s", core_msg);
+            snprintf(h.stat_value[5], sizeof(h.stat_value[5]), "%.38s", core_msg);
             h.nstats = core_msg[0] ? 6 : 5;
             hud_last = h;
             hud_have = true;
@@ -4136,10 +4317,16 @@ static void run_game(void)
 #ifdef CP_ENABLED
          if (opt_bottom == 3 && sess_frames % 300 < 60) {
             char cp_line[160];
-            snprintf(cp_line, sizeof(cp_line), "Companion: work %lu us, interval %u ms, memory %lu KiB",
+            snprintf(cp_line, sizeof(cp_line), ud_tr("Companion: work %lu us, interval %u ms, memory %lu KiB"),
                   (unsigned long)(cp_work_ticks / (SYSCLOCK_ARM11 / 1000000ULL)),
                   companion_interval_ms(), (unsigned long)(companion_memory() / 1024));
             prof_log_line(cp_line);
+            if (cp_bag.active&&cp_bag.frames) {
+               snprintf(cp_line,sizeof(cp_line),"Bag: up to 30 Hz, redraws %u, work avg %.2f ms",
+                     cp_bag.frames,
+                     cp_bag.work_us/(1000.0*cp_bag.frames));
+               prof_log_line(cp_line);
+            }
          }
 #endif
          prev_underruns = audio_underruns;
@@ -4155,6 +4342,7 @@ static void run_game(void)
          hud_now = false;
       }
    }
+   __atomic_store_n(&ff_indicator_speed,0,__ATOMIC_RELAXED);
 }
 
 /* Started with a game (forwarders / HOME Menu shortcuts pass the ROM path
@@ -4221,6 +4409,14 @@ int main(int argc, char **argv)
 {
    aptHookCookie cookie;
    bool dynarec;
+   if (argc > 0 && argv && argv[0]) {
+      const char *prefix = argv[0][0] == '/' ? "sdmc:" : "";
+      size_t prefix_len = strlen(prefix), path_len = strlen(argv[0]);
+      if (prefix_len + path_len < sizeof(update_launch_path)) {
+         memcpy(update_launch_path, prefix, prefix_len);
+         memcpy(update_launch_path + prefix_len, argv[0], path_len + 1);
+      }
+   }
 
    prof_defer_log = true;   /* no SD writes from the profiler while playing */
    gfxInit(GSP_RGB565_OES, GSP_RGB565_OES, false);
@@ -4252,8 +4448,15 @@ int main(int argc, char **argv)
    mkdir("sdmc:/3ds", 0777);
    mkdir(APP_DIR, 0777);
    config_load();
+#ifdef CP_ENABLED
+   // A held L can recover an installation that freezes during GPU startup.
+   hidScanInput();
+   if (hidKeysHeld() & KEY_L)
+      opt_gpu = 0;
+   companion_item_bind(&item_guest);
+#endif
    if (opt_update)
-      update_check_start(GPSP3D_VERSION);
+      update_check_start(UPDATE_VERSION);
    if (!dir_exists(cur_dir))
       strcpy(cur_dir, "sdmc:/");
 
@@ -4285,13 +4488,17 @@ int main(int argc, char **argv)
             config_save();
          }
          char body[200];
-         snprintf(body, sizeof(body), "During: %s\n\n%s", froze, closing ? "" :
+         snprintf(body, sizeof(body), ud_tr("During: %s\n\n%s"), froze, closing ? "" :
                 "GPU display is now Off (menu: System >\nGPU display). The CPU shows the frames.");
          ui_wait_message("The 3DS froze last time", body);
       }
    }
    if (opt_gpu)
    {
+#ifdef CP_ENABLED
+      scr_message(ud_tr("GPU display"), ud_tr("Starting..."), NULL);
+      ui_present();
+#endif
       gpu_guard_set("starting the GPU");
       gpu_ok = gpu_init();
       if (gpu_ok)
@@ -4316,8 +4523,19 @@ int main(int argc, char **argv)
    clear_top();
    gpu_guard_clear();
    direct_launch_init(argc, argv);
+#ifdef CP_ENABLED
+   bool startup_prompt_pending = true;
+#endif
    while (!quit_app && next_game())
    {
+#ifdef CP_ENABLED
+      if (startup_prompt_pending) {
+         startup_prompt_pending = false;
+         startup_update_prompt();
+         if (quit_app || !aptMainLoop())
+            break;
+      }
+#endif
       {
          const char *nm = strrchr(rom_path, '/');
          scr_message("Loading", nm ? nm + 1 : rom_path, NULL);

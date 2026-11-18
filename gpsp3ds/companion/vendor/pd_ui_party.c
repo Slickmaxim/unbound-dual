@@ -1,3 +1,4 @@
+#include "../localization.h"
 extern int cp_bottom_smooth;
 // PARTY: the six slots, each with the game's own icon (from the ROM, pd_icon), and a summary on tap. A game with its own
 // art (pd_party_art) gets the game's slot, drawn like GbaPartySlot; every other one a slot in its PartyPalette.
@@ -14,6 +15,7 @@ extern int cp_bottom_smooth;
 #include "pd_tables.h"
 #include "pd_experience.h"
 #include "pd_ui_internal.h"
+#include "pd_unbound_ru.h"
 
 static bool party_egg(const struct pd_ui* ui, const struct pd_mon* m) {
     return ui && ui->partySource && ui->partySource->egg ? ui->partySource->egg(ui->partySource->ctx, m) : m->egg || m->species == PD_SPECIES_EGG;
@@ -90,7 +92,7 @@ static void held_mark(struct pd_canvas* c, int x, int y) {
 }
 
 static const char* mon_display_name(const struct pd_ui* ui, const struct pd_game* g, const struct pd_mon* m, char* buf, size_t len) {
-    if (party_egg(ui, m)) return "EGG";
+    if (party_egg(ui, m)) return pd_species_name(g, PD_SPECIES_EGG, buf, len);
     if (m->nickname[0]) return m->nickname;
     return party_species(ui, g, m->species, buf, len);
 }
@@ -220,7 +222,6 @@ static void status_chip(struct pd_canvas* c, int x, int y, const char* label) {
 
 static uint32_t *cp_slot_scratch, *cp_party_pixels;
 static size_t cp_slot_capacity;
-void cp_party_reset(void) { cp_slot_scratch = cp_party_pixels = NULL; cp_slot_capacity = 0; }
 
 // An empty slot: its box, faint over the backdrop (drawn whole, then blended in).
 static void faded_slot(struct pd_canvas* c, int x, int y, int w, int h, const struct slot_geometry* g,
@@ -317,6 +318,11 @@ static int art_text_y(const struct art_geometry* a, int v) {
 static uint32_t* window;
 static int windowSize;
 
+void cp_party_reset(void) {
+    cp_slot_scratch=cp_party_pixels=window=NULL;
+    cp_slot_capacity=0;windowSize=0;
+}
+
 // The frame, grown by repeating its uniform columns and rows; a band frame gets its diagonals redrawn (buildBandFrame).
 static bool art_frame(const struct pd_party_art* art, enum pd_slot_frame frame, const struct art_geometry* a) {
     static short cols[MAX_WINDOW_SIDE], rows[MAX_WINDOW_SIDE];
@@ -381,7 +387,8 @@ static const struct { const char* c; int code; } OTHER_CODES[] = {
 };
 
 // The next character's Gen 3 code for FONT_SMALL (encodeSmallFont); '?' for anything the font doesn't have.
-static int small_font_code(const struct pd_party_style* st, const char** s) {
+static int small_font_code(const struct pd_party_art* art, const char** s) {
+    const struct pd_party_style* st = art->style;
     unsigned char c = (unsigned char) **s;
     if (c < 0x80) {
         (*s)++;
@@ -410,6 +417,10 @@ static int small_font_code(const struct pd_party_style* st, const char** s) {
     const char* at = *s;
     for (int i = 1; i < len && at[i]; i++) (*s)++;
     (*s)++;
+    if (art->cyrillic && len == 2 && at[1]) {
+        uint8_t code = pd_ru_glyph_code((c & 0x1F) << 6 | ((unsigned char) at[1] & 0x3F));
+        if (code) return code;
+    }
     for (size_t i = 0; i < sizeof(OTHER_CODES) / sizeof(*OTHER_CODES); i++)
         if (!strncmp(at, OTHER_CODES[i].c, (size_t) len)) return OTHER_CODES[i].code;
     for (size_t i = 0; i < sizeof(WESTERN) / sizeof(*WESTERN); i++)
@@ -420,7 +431,7 @@ static int small_font_code(const struct pd_party_style* st, const char** s) {
 // A card shown scaled keeps its text out of the scaling, which would blur it: art_text notes it down here and card_texts
 // draws it on the canvas afterwards, at whole pixels.
 struct card_text {
-    char text[24];
+    char text[40];
     short x, y;
     bool right;
     uint32_t fg, shadow;
@@ -457,7 +468,7 @@ static void art_text(const struct pd_party_art* art, const struct art_geometry* 
         return;
     }
     while (*s) {
-        int g = small_font_code(art->style, &s);
+        int g = small_font_code(art, &s);
         for (int yy = 0; yy < GLYPH_H; yy++) {
             int wy = y + yy, row = pd_party_glyph_row(art, g, yy);
             if (wy < 0 || wy >= a->h || !row) continue;
@@ -466,7 +477,8 @@ static void art_text(const struct pd_party_art* art, const struct art_geometry* 
                 if ((p == 1 || p == 2) && wx >= 0 && wx < a->w) window[wy * a->w + wx] = PD_ART_OPAQUE | (p == 1 ? fg : shadow);
             }
         }
-        x += art->style->glyphWidths[g];
+        x += art->cyrillic && g < 256 && pd_ru_codepoint((uint8_t) g) ?
+            art->cyrillicWidths[g] : art->style->glyphWidths[g];
     }
 }
 
@@ -579,7 +591,7 @@ static void art_slot_at(struct pd_canvas* c, const struct pd_game* g, const stru
     if (m->egg) {
         // DisplayPartyPokemonData's egg branch: the no-HP box and the nickname only.
         if (!art_frame(art, selected ? PD_SLOT_NOHP_SELECTED : PD_SLOT_NOHP, a)) return;
-        art_text(art, a, st->eggName, art_left(a, st->nameX), art_text_y(a, st->nameY), st->text, st->textShadow);
+        art_text(art, a, art->cyrillic ? "Яйцо" : st->eggName, art_left(a, st->nameX), art_text_y(a, st->nameY), st->text, st->textShadow);
         art_window(c, a, x, y, 255);
         art_sprites(c, a, art, g, x, y, m, selected);
         return;
@@ -734,7 +746,7 @@ static uint32_t cards_key(const struct pd_canvas* c, const struct pd_game* g, co
                           const struct card_scale* k, const struct pd_snapshot* s, int selected) {
     uint32_t h = 2166136261u;
     const void* ptrs[4] = { c->px, g, art, pd_cur };
-    int ints[9] = { c->w, c->h, c->cx0, c->cy0, c->cx1, c->cy1, selected, s->partyCount, (int) pd_rom_id(g) };
+    int ints[10] = { c->w, c->h, c->cx0, c->cy0, c->cx1, c->cy1, selected, s->partyCount, (int) pd_rom_id(g), ud_language_get() };
     h = hash_bytes(h, ptrs, sizeof(ptrs));
     h = hash_bytes(h, ints, sizeof(ints));
     h = hash_bytes(h, k, sizeof(*k));
@@ -847,7 +859,7 @@ static void party_slot(struct pd_ui* ui, struct pd_canvas* c, const struct pd_ga
     if (m->heldItem) held_mark(c, x + geo.fx + 13 * u, y + geo.fy + 15 * u);
 
     int textW = geo.fx + geo.fw - 4 * u - geo.textX;
-    pd_text_fit(c, x + geo.textX, y + geo.nameMid - 8, textW, mon_display_name(ui, g, m, buf, sizeof(buf)), text,
+    pd_text_fit_raw(c, x + geo.textX, y + geo.nameMid - 8, textW, mon_display_name(ui, g, m, buf, sizeof(buf)), text,
                 shadow);
     if (!egg) {
         const char* status = fainted ? "FNT" : pd_status_label(m->status);
@@ -855,7 +867,7 @@ static void party_slot(struct pd_ui* ui, struct pd_canvas* c, const struct pd_ga
             status_chip(c, x + geo.textX + 6 * u, y + geo.levelMid - 7, status);
         } else {
             char lv[12];
-            snprintf(lv, sizeof(lv), "Lv%d", m->level);
+            snprintf(lv, sizeof(lv), ud_tr("Lv%d"), m->level);
             int lw = pd_text(c, x + geo.textX + 6 * u, y + geo.levelMid - 8, lv, text, shadow);
             if (m->shiny) pd_text(c, x + geo.textX + 6 * u + lw + 3, y + geo.levelMid - 8, "*", SHINY_MARK, shadow);
         }
@@ -1000,7 +1012,7 @@ static void summary_stats(struct pd_canvas* c, const struct pd_mon* m, int x, in
     }
     if (st->hasHiddenPower) {
         int lw = pd_text(c, x, y, "HIDDEN POWER", PD_MUTED, PD_MUTED_SHADOW);
-        if (st->hiddenPowerPower > 0) snprintf(buf, sizeof(buf), "%s  PWR %d", pd_type_name(NULL, st->hiddenPowerType), st->hiddenPowerPower);
+        if (st->hiddenPowerPower > 0) snprintf(buf, sizeof(buf), ud_tr("%s  PWR %d"), pd_type_name(NULL, st->hiddenPowerType), st->hiddenPowerPower);
         else snprintf(buf, sizeof(buf), "%s", pd_type_name(NULL, st->hiddenPowerType));
         int vw = pd_text_width(buf);
         if (vw > w - lw - 8) vw = w - lw - 8;
@@ -1026,7 +1038,7 @@ static void summary_info(struct pd_canvas* c, const struct pd_game* g, const str
         pd_fill(c, x + 1, row + 1, xp.filled, 7, 0x40B8F8);
         row += 10;
         if (m->level == 100) snprintf(buf, sizeof(buf), "MAX");
-        else snprintf(buf, sizeof(buf), "NEXT %lu", (unsigned long) xp.toNext);
+        else snprintf(buf, sizeof(buf), ud_tr("NEXT %lu"), (unsigned long) xp.toNext);
         pd_text_right(c, x + w, row, buf, PD_VALUE, PD_VALUE_SHADOW);
         row += 17;
     }
@@ -1086,16 +1098,18 @@ static void summary_chip(struct pd_canvas* c, int x, int y, int width, int type,
 static void summary_stats_left(struct pd_canvas* c, const struct pd_summary_view* v, int w, int y, int bottom) {
     const struct pd_mon_stats* st = v->stats;
     if (v->speciesName && strcmp(v->speciesName, v->name) && y + 15 <= bottom) {
-        pd_text_fit(c, 13, y, w, v->speciesName, PD_LABEL, PD_LABEL_SHADOW);
+        pd_text_fit_raw(c, 13, y, w, v->speciesName, PD_LABEL, PD_LABEL_SHADOW);
         y += 15;
     }
     if (st && st->hasNature && st->nature >= 0 && st->nature < pd_nature_names_count && y + 15 <= bottom) {
-        pd_text_fit(c, 13, y, w, pd_nature_names[st->nature], PD_LABEL, PD_LABEL_SHADOW);
+        const struct pd_text* text = v->game && v->game->cfg ? v->game->cfg->text : NULL;
+        const char* nature = text && text->natures && st->nature < 25 ? text->natures[st->nature] : ud_tr(pd_nature_names[st->nature]);
+        pd_text_fit(c, 13, y, w, nature, PD_LABEL, PD_LABEL_SHADOW);
         y += 15;
     }
     if (v->friendship >= 0 && y + 15 <= bottom) {
-        char line[24];
-        snprintf(line, sizeof line, "FRIENDSHIP %d", v->friendship);
+        char line[48];
+        snprintf(line, sizeof line, ud_tr("FRIENDSHIP %d"), v->friendship);
         pd_text_fit(c, 13, y, w, line, PD_LABEL, PD_LABEL_SHADOW);
         y += 15;
     }
@@ -1143,7 +1157,7 @@ static void summary_stats_right(struct pd_canvas* c, const struct pd_summary_vie
         }
     }
     int y = top + (n + 1) * row;
-    char text[52];
+    char text[80];
     if (s->hasEvs) {
         snprintf(text, sizeof text, "EV TOTAL  %d", total);
         pd_text_right(c, ev, y, text, PD_MUTED, PD_MUTED_SHADOW);
@@ -1151,8 +1165,8 @@ static void summary_stats_right(struct pd_canvas* c, const struct pd_summary_vie
     }
     if (s->hasHiddenPower && y + 15 <= bottom) {
         const char* type = pd_type_name(NULL, s->hiddenPowerType);
-        if (s->hiddenPowerPower > 0) snprintf(text, sizeof text, "HIDDEN POWER  %s %d", type, s->hiddenPowerPower);
-        else snprintf(text, sizeof text, "HIDDEN POWER  %s", type);
+        if (s->hiddenPowerPower > 0) snprintf(text, sizeof text, ud_tr("HIDDEN POWER  %s %d"), type, s->hiddenPowerPower);
+        else snprintf(text, sizeof text, ud_tr("HIDDEN POWER  %s"), type);
         pd_text_fit(c, x, y, w, text, PD_MUTED, PD_MUTED_SHADOW);
     }
 }
@@ -1180,7 +1194,7 @@ static void summary_learn(struct pd_canvas* c, const struct pd_summary_view* v, 
         const int y = 32 + (i - first) * 17;
         char scratch[48], level[12];
         const struct pd_summary_learn_row move = list->row(list->ctx, i, scratch, sizeof scratch);
-        if (move.level) snprintf(level, sizeof level, "Lv%d", move.level);
+        if (move.level) snprintf(level, sizeof level, ud_tr("Lv%d"), move.level);
         else snprintf(level, sizeof level, "EVO.");
         pd_text(c, x, y, level, move.level > v->level ? PD_VALUE : PD_MUTED, PD_MUTED_SHADOW);
         pd_text_fit(c, x + 42, y, w - 47, move.name, PD_LABEL, PD_LABEL_SHADOW);
@@ -1193,13 +1207,13 @@ void pd_ui_summary_page(struct pd_canvas* c, const struct pd_summary_view* v, en
     pd_title_box(c, 4, 4, w, h, PD_TITLE_FILL);
     pd_list_box(c, 11, 13, 34, 34);
     v->icon(v->ctx, c, v->selected, 12, 14, false);
-    pd_text_fit(c, 49, 12, side - 40, v->name, PD_LABEL, PD_LABEL_SHADOW);
+    pd_text_fit_raw(c, 49, 12, side - 40, v->name, PD_LABEL, PD_LABEL_SHADOW);
     if (v->egg) {
         pd_text(c, 14, 58, "It will hatch in time.", PD_MUTED, PD_MUTED_SHADOW);
         return;
     }
     char line[48];
-    snprintf(line, sizeof line, "Lv%d", v->level);
+    snprintf(line, sizeof line, ud_tr("Lv%d"), v->level);
     pd_text(c, 49, 28, line, PD_VALUE, PD_VALUE_SHADOW);
     pd_text_right(c, side + 7, 28, v->hp ? pd_status_label(v->status) : "FNT", PD_VALUE, PD_VALUE_SHADOW);
     const int types[] = {v->type1, v->type2};
@@ -1226,7 +1240,7 @@ void pd_ui_summary_page(struct pd_canvas* c, const struct pd_summary_view* v, en
         pd_text(c, 13, 82, "EXP", PD_MUTED, PD_MUTED_SHADOW);
         if (v->expPercent >= 0) {
             if (v->level >= 100) snprintf(line, sizeof line, "MAX");
-            else snprintf(line, sizeof line, "NEXT %lu", (unsigned long)v->toNext);
+            else snprintf(line, sizeof line, ud_tr("NEXT %lu"), (unsigned long)v->toNext);
             pd_fill(c, 13, 97, bar, 5, PD_DIVIDER);
             pd_fill(c, 13, 97, v->expPercent * bar / 100, 5, 0x5883BF);
         } else snprintf(line, sizeof line, "%lu", (unsigned long)v->experience);
@@ -1275,7 +1289,7 @@ void pd_ui_summary_page(struct pd_canvas* c, const struct pd_summary_view* v, en
         char power[12] = "-";
         if (move->power == 1) snprintf(power, sizeof power, "VAR");
         else if (move->power > 1) snprintf(power, sizeof power, "%d", move->power);
-        snprintf(line, sizeof line, "PWR %s PP %d", power, move->pp);
+        snprintf(line, sizeof line, ud_tr("PWR %s PP %d"), power, move->pp);
         pd_text_right(c, rx + rw - 3, top + 15, line, PD_VALUE, PD_VALUE_SHADOW);
         const char* label = pd_type_name(v->game, move->type);
         int chip = rw - pd_text_width(line) - 8, need = pd_text_width(label) + 6;
@@ -1493,7 +1507,7 @@ void ui_mon_summary(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game*
         pd_text_wrap(c, ix + PD_ICON + 6, ty, half - PD_ICON - 6, 15, 3, "It will hatch in time.", PD_MUTED, PD_MUTED_SHADOW);
     } else {
         int tx = ix + PD_ICON + 6;
-        snprintf(buf, sizeof(buf), "Lv%d", m->level);
+        snprintf(buf, sizeof(buf), ud_tr("Lv%d"), m->level);
         int lw = pd_text(c, tx, ty, buf, PD_VALUE, PD_VALUE_SHADOW);
         const char* status = pd_status_label(m->status);
         if (*status) ui_status_badge(c, tx + lw + 4, ty + 1, m->status);

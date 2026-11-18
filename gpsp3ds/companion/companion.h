@@ -13,13 +13,28 @@ void companion_cache_directory(const char *directory);
 const char *companion_cache_status(void);
 bool companion_supported(void);
 const char *companion_error(void);
-// At most 5 Hz; work > 3 ms lowers the rate. No catch-up updates.
+// RAM polling is independent of the Bag scroll redraw timer.
 bool companion_update(uint64_t now_us);
 void companion_draw(uint16_t *rgb565);
+// Update just the list of a previously painted Bag in the same canvas.
+bool companion_draw_bag_scroll(uint16_t *rgb565,int rect[4]);
 // Touch phases: 0 down, 1 held, 2 release. Return true for native MENU.
 bool companion_touch(int phase,int x,int y);
 void companion_invalidate(void);
+bool companion_bag_open(void);
 unsigned companion_interval_ms(void);
 void companion_feedback(unsigned elapsed_us);
 size_t companion_memory(void);
+struct companion_guest {
+    bool (*idle)(void);
+    bool (*begin)(void);
+    bool (*call)(uint32_t, const uint32_t[4], uint32_t*, bool);
+    void (*end)(bool);
+    bool (*call_stack)(uint32_t, const uint32_t[7], uint32_t*);
+    bool (*write)(uint32_t, uint32_t, unsigned);
+};
+void companion_item_bind(const struct companion_guest* guest);
+bool companion_item_tick(void);
+void companion_item_at_wait(void);
+void companion_item_cancel(void);
 #endif

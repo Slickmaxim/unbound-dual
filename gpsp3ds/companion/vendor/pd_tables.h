@@ -41,6 +41,8 @@ struct pd_text {
     int mapsecsCount;
     // A FireRed 1.0 hack whose region_map.c reads its own sMapNames (the app's RomRegionMap): those names first.
     bool mapsecsRom;
+    // Optional ROM-specific nature names, indexed 0..24.
+    const char* const* natures;
 };
 
 struct pd_game;

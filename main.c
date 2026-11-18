@@ -279,6 +279,11 @@ u32 function_cc update_gba(int remaining_cycles)
     if (irq_raised)
       flag_interrupt(irq_raised);
 
+    // Hand off the audited field wait while the main stack is still parked.
+    // The interrupt handler may take over before retro_run returns.
+    if (gpsp_guest_poll_wait())
+      changed_pc = 0x40000000;
+
     // Raise any pending interrupts. This changes the CPU mode.
     if (check_and_raise_interrupts())
       changed_pc = 0x40000000;

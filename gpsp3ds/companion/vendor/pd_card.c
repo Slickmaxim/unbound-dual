@@ -1,4 +1,7 @@
 #include "pd_card.h"
+#include "pd_unbound_ru.h"
+#include "pd_font.h"
+#include "../localization.h"
 
 #include <stdio.h>
 #include <math.h>
@@ -387,6 +390,7 @@ struct art {
     const uint8_t* d[PD_BLOB_COUNT];
     uint32_t* img;
     const struct layout* lay;
+    bool cyrillic;
 };
 
 static uint32_t expand(uint32_t v) {
@@ -440,11 +444,11 @@ static void pic(uint32_t* img, const uint8_t* tiles, const uint32_t* pal, const 
 // A string in the games' encoding.
 struct str {
     int n;
-    uint8_t c[48];
+    uint16_t c[48];
 };
 
 static void add(struct str* s, int ch) {
-    if (s->n < (int) sizeof(s->c)) s->c[s->n++] = (uint8_t) ch;
+    if (s->n < (int) (sizeof(s->c) / sizeof(*s->c))) s->c[s->n++] = (uint16_t) ch;
 }
 
 static void cat(struct str* s, const struct str* t) {
@@ -453,9 +457,30 @@ static void cat(struct str* s, const struct str* t) {
 
 // ASCII (and é / ¥) in the games' character encoding (enc).
 static struct str enc(const char* text) {
+    text = ud_tr(text);
     struct str s = { 0 };
     for (const unsigned char* p = (const unsigned char*) text; *p; p++) {
         int ch = *p;
+        if ((ch == 0xD0 || ch == 0xD1) && p[1]) {
+            unsigned cp = (ch & 0x1F) << 6 | (p[1] & 0x3F);
+            if (pd_ru_glyph_code(cp)) {
+                add(&s, cp);
+                ++p;
+                continue;
+            }
+        }
+        if (ch == 0xC3 && p[1]) {
+            int code=-1;
+            switch(p[1]) {
+            case 0x81:code=0x02;break; case 0x89:code=0x06;break;
+            case 0x8D:code=0x5A;break; case 0x93:code=0x0E;break;
+            case 0x9A:code=0x13;break; case 0x91:code=0x15;break;
+            case 0xA1:code=0x18;break; case 0xAD:code=0x6F;break;
+            case 0xB3:code=0x22;break; case 0xBA:code=0x27;break;
+            case 0xB1:code=0x29;break; case 0xBC:code=0xF6;break;
+            }
+            if(code>=0){add(&s,code);p++;continue;}
+        }
         if (ch == 0xC3 && p[1] == 0xA9) { // é
             add(&s, 0x1B);
             p++;
@@ -503,7 +528,11 @@ static struct str digits(int value, int n, int mode, int pad) {
 
 static int width(const struct art* a, const struct blobs* b, const struct str* s) {
     int w = 0;
-    for (int i = 0; i < s->n; i++) w += a->d[b->widths][s->c[i]];
+    for (int i = 0; i < s->n; i++) {
+        unsigned code = s->c[i];
+        if (code > 255 && a->cyrillic) code = pd_ru_glyph_code(code);
+        w += code > 255 ? pd_font_glyph(code)->advance : a->d[b->widths][code];
+    }
     return w;
 }
 
@@ -513,6 +542,26 @@ static void print(const struct art* a, const struct blobs* b, int x0, int y, con
     int x = x0;
     for (int i = 0; i < s->n; i++) {
         int g = s->c[i];
+        if (g > 255 && a->cyrillic) g = pd_ru_glyph_code(g);
+        if (g > 255) {
+            const struct pd_glyph* glyph = pd_font_glyph(g);
+            for (int py = 0; py < a->lay->glyphH && py < PD_FONT_HEIGHT; ++py) {
+                int wy = y + py;
+                if (wy < 0 || wy >= 144) continue;
+                unsigned ink = glyph->rows[py];
+                unsigned shade = py ? (unsigned) glyph->rows[py - 1] << 1 : 0;
+                for (int px = 0; px < 16; ++px) {
+                    int wx = x + px;
+                    if (wx < 0 || wx >= a->lay->textW) continue;
+                    unsigned mask = 1u << px;
+                    uint32_t* pixel = &a->img[(8 + wy) * PD_CARD_W + 8 + wx];
+                    if (ink & mask) *pixel = fg;
+                    else if (shade & mask) *pixel = shadow;
+                }
+            }
+            x += glyph->advance;
+            continue;
+        }
         int w = a->d[b->widths][g];
         int cols = a->lay->cols == COLS_NARROW ? (w <= 8 ? 8 : 16) : a->lay->cols == COLS_WIDTH ? (w < 16 ? w : 16) : 16;
         for (int py = 0; py < a->lay->glyphH; py++) {
@@ -559,27 +608,27 @@ static void kanto_text(const struct art* a, const struct blobs* b, const struct 
                        bool colon) {
     struct str s, t;
     if (!back) {
-        s = enc("NAME: ");
+        s = enc(a->cyrillic ? "ИМЯ: " : "NAME: ");
         t = name_of(c);
         cat(&s, &t);
         say(a, b, 20, 29, &s);
-        s = enc("IDNo.");
+        s = enc(a->cyrillic ? "ИД " : "IDNo.");
         t = digits(c->trainerId, 5, LEADING_ZEROS, 0);
         cat(&s, &t);
         say(a, b, 142, 10, &s);
         struct str money = enc("¥");
         t = digits((int) c->money, 6, LEFT, 0);
         cat(&money, &t);
-        s = enc("MONEY");
+        s = enc(a->cyrillic ? "ДЕНЬГИ" : "MONEY");
         say(a, b, 20, 56, &s);
         say(a, b, (134 - 6 * money.n) & 0xFF, 56, &money);
         if (c->dexCaught >= 0) {
             t = digits(c->dexCaught, 3, LEFT, 0);
-            s = enc("POKéDEX");
+            s = enc(a->cyrillic ? "ПОКЕДЕКС" : "POKéDEX");
             say(a, b, 20, 72, &s);
             say(a, b, (136 - 6 * t.n) & 0xFF, 72, &t);
         }
-        s = enc("TIME");
+        s = enc(a->cyrillic ? "ВРЕМЯ" : "TIME");
         say(a, b, 20, 88, &s);
         t = digits(c->hours, 3, RIGHT, 0x00);
         say(a, b, 101, 88, &t);
@@ -594,17 +643,17 @@ static void kanto_text(const struct art* a, const struct blobs* b, const struct 
     t = name_of(c);
     say(a, b, 138, 11, &t);
     if (c->hofDebut) {
-        s = enc("HALL OF FAME DEBUT  ");
+        s = enc(a->cyrillic ? "ЗАЛ СЛАВЫ" : "HALL OF FAME DEBUT  ");
         say(a, b, 10, 35, &s);
         t = hof_time(c->hofDebut, 0x00);
         say_red(a, b, 164, 35, &t);
     }
     if (c->linkWins || c->linkLosses) {
-        s = enc("LINK BATTLES");
+        s = enc(a->cyrillic ? "СЕТЕВЫЕ БОИ" : "LINK BATTLES");
         say(a, b, 10, 51, &s);
-        s = enc("W:");
+        s = enc(a->cyrillic ? "П:" : "W:");
         say(a, b, 130, 51, &s);
-        s = enc("L:");
+        s = enc(a->cyrillic ? "ПР:" : "L:");
         say(a, b, 130 + 0x30, 51, &s);
         t = digits(c->linkWins, 4, RIGHT, 0x00);
         say_red(a, b, 144, 51, &t);
@@ -612,19 +661,19 @@ static void kanto_text(const struct art* a, const struct blobs* b, const struct 
         say_red(a, b, 192, 51, &t);
     }
     if (c->trades) {
-        s = enc("POKéMON TRADES");
+        s = enc(a->cyrillic ? "ОБМЕНЫ ПОКЕМОНОВ" : "POKéMON TRADES");
         say(a, b, 10, 67, &s);
         t = digits(c->trades, 5, RIGHT, 0x00);
         say_red(a, b, 186, 67, &t);
     }
     if (c->unionRoom) {
-        s = enc("UNION TRADES & BATTLES");
+        s = enc(a->cyrillic ? "ОБМЕНЫ И БОИ" : "UNION TRADES & BATTLES");
         say(a, b, 10, 83, &s);
         t = digits(c->unionRoom, 5, RIGHT, 0x00);
         say_red(a, b, 186, 83, &t);
     }
     if (c->berryCrush) {
-        s = enc("BERRY CRUSH");
+        s = enc(a->cyrillic ? "ДАВКА ЯГОД" : "BERRY CRUSH");
         say(a, b, 10, 99, &s);
         t = digits(c->berryCrush, 5, RIGHT, 0x00);
         say_red(a, b, 186, 99, &t);
@@ -825,7 +874,7 @@ bool pd_card_render(const struct pd_game* g, const struct pd_card_info* c, bool 
     const struct blobs* b = c->style == PD_CARD_UNBOUND ? &UNBOUND : ry ? &RECHARGED_YELLOW : kanto ? &KANTO :
         c->style == PD_CARD_LEGACY ? &LEGACY : c->style == PD_CARD_LAZARUS ? &LAZARUS : c->style == PD_CARD_SOULGOLD ? &SOULGOLD :
         c->style == PD_CARD_GLAZED ? &GLAZED : &HOENN;
-    struct art a = { .img = img, .lay = ry ? &RY_LAYOUT : kanto ? &KANTO_LAYOUT : c->style == PD_CARD_LAZARUS ? &LAZARUS_LAYOUT :
+    struct art a = { .img = img, .cyrillic = g->cfg && g->cfg->cyrillic, .lay = ry ? &RY_LAYOUT : kanto ? &KANTO_LAYOUT : c->style == PD_CARD_LAZARUS ? &LAZARUS_LAYOUT :
         c->style == PD_CARD_SOULGOLD ? &SOULGOLD_LAYOUT : &HOENN_LAYOUT };
     if (c->style != PD_CARD_KANTO && c->style != PD_CARD_HOENN && c->style != PD_CARD_LEGACY && c->style != PD_CARD_UNBOUND &&
         c->style != PD_CARD_LAZARUS && c->style != PD_CARD_SOULGOLD && c->style != PD_CARD_GLAZED && !ry) return false;

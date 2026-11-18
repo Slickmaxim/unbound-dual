@@ -1,3 +1,8 @@
+#ifdef CP_ENABLED
+#include "../companion/localization.h"
+#else
+#define ud_tr(s) (s)
+#endif
 #include "ui.h"
 #include <string.h>
 
@@ -198,11 +203,16 @@ const ui_glyph *ui_glyph_of(const ui_font *f, unsigned c)
       return &f->g[c - 32];
    if (c >= 160 && c <= 255)
       return &f->g[95 + c - 160];
+   if (c == 0x401) return &f->g[191]; /* Ё */
+   if (c >= 0x410 && c <= 0x44F) return &f->g[192 + c - 0x410];
+   if (c == 0x451) return &f->g[256]; /* ё */
+   if (c == 0x2116) return &f->g[257]; /* № */
    return &f->g['?' - 32];
 }
 
 int ui_text_w(const ui_font *f, const char *s)
 {
+   s = ud_tr(s);
    int w = 0;
    while (*s)
       w += ui_glyph_of(f, ui_utf8_next(&s))->adv;
@@ -224,6 +234,7 @@ static void draw_glyph(const ui_font *f, const ui_glyph *g, int x, int y, uint16
 
 int ui_text(const ui_font *f, int x, int y, const char *s, uint16_t c, int max_w)
 {
+   s = ud_tr(s);
    int dots = 0, x0 = x;
    if (max_w > 0 && ui_text_w(f, s) > max_w)
       dots = ui_text_w(f, "...");
@@ -267,10 +278,15 @@ int ui_text_vc(const ui_font *f, int x, int y, int h, const char *s, uint16_t c,
 
 #ifdef __3DS__
 #include <3ds.h>
+// Both back buffers must contain the same static UI before using a partial copy.
+static u16* bottom_canvas_buffers[2];
+
 void ui_present(void)
 {
    /* bottom framebuffer: 240 x 320 RGB565, column-major, y flipped */
    u16 *fb = (u16*)gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, NULL, NULL);
+   bottom_canvas_buffers[0]=fb;
+   bottom_canvas_buffers[1]=NULL;
    int bx, by, x, y;
    /* transpose in 16x16 tiles so both sides stay in the cache */
    for (by = 0; by < UI_H; by += 16)
@@ -285,6 +301,28 @@ void ui_present(void)
    GSPGPU_FlushDataCache(fb, UI_W * UI_H * 2);
    gfxScreenSwapBuffers(GFX_BOTTOM, false);
 }
+void ui_present_region(const int rect[4])
+{
+   u16* fb=(u16*)gfxGetFramebuffer(GFX_BOTTOM,GFX_LEFT,NULL,NULL);
+   if(fb!=bottom_canvas_buffers[0] && fb!=bottom_canvas_buffers[1]){
+      u16* previous=bottom_canvas_buffers[0];
+      ui_present();
+      bottom_canvas_buffers[1]=previous;
+      return;
+   }
+   int left=rect[0],top=rect[1],right=left+rect[2],bottom=top+rect[3];
+   for(int by=top;by<bottom;by+=16){
+      int end=by+16<bottom ? by+16 : bottom;
+      for(int x=left;x<right;++x){
+         u16* dst=fb+x*UI_H+UI_H-1-by;
+         const u16* src=ui_canvas+by*UI_W+x;
+         for(int y=by;y<end;++y,src+=UI_W) *dst--=*src;
+      }
+   }
+   GSPGPU_FlushDataCache(fb+left*UI_H,rect[2]*UI_H*sizeof(*fb));
+   gfxScreenSwapBuffers(GFX_BOTTOM,false);
+}
 #else
 void ui_present(void) {}
+void ui_present_region(const int rect[4]) {(void)rect;}
 #endif

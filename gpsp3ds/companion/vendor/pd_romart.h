@@ -93,6 +93,9 @@ void pd_romart_scan(const struct pd_game* g);
 // ROM doesn't have it.
 const uint8_t* pd_romart_blob(const struct pd_game* g, enum pd_blob b);
 
+// Required slot/backdrop resources are present; no derived image allocation.
+bool pd_romart_party_ready(const struct pd_game* g);
+
 // One pass over g's ROM for [sigs]: out[i] = the decoded blob (malloc'd, sigs[i]->size bytes) or NULL.
 void pd_romart_find(const struct pd_game* g, const struct pd_blob_sig* const* sigs, int n, uint8_t** out);
 

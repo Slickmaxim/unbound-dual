@@ -99,7 +99,7 @@ static bool decode_cfru(const struct pd_game* g, const uint8_t* r, struct pd_mon
     for (int i = 0; i < 6; i++) m->stats.ivs[i] = (uint8_t) (iv >> (i * 5) & 31);
     m->egg = iv >> 30 & 1;
     m->stats.nature = (int) (m->personality % 25);
-    pd_gen3_text(r + 8, 10, m->nickname, sizeof(m->nickname));
+    pd_gen3_text_for(g->cfg, r + 8, 10, m->nickname, sizeof(m->nickname));
     if (m->egg) m->species = PD_SPECIES_EGG;
     return true;
 }
@@ -138,7 +138,7 @@ void pd_boxes_read(struct pd_boxes* b, const struct pd_game* g, pd_read_fn read,
         }
         uint8_t text[NAME_LEN];
         if (!read(ctx, at + name, text, NAME_LEN) || !read(ctx, at + wall, &b->wallpaper[i], 1)) return;
-        pd_gen3_text(text, NAME_LEN, b->names[i], sizeof(b->names[i]));
+        pd_gen3_text_for(c, text, NAME_LEN, b->names[i], sizeof(b->names[i]));
         if (!read(ctx, first, raw, (size_t) (PD_BOX_SLOTS * rec))) return;
         int count = 0;
         memset(i == box ? b->has : (bool[PD_BOX_SLOTS]) { 0 }, 0, sizeof(b->has));

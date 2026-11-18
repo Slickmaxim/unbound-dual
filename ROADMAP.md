@@ -191,3 +191,43 @@ Sonic Advance 1 and 2, Ace Combat Advance, Asterix, Downhill Jam, Pokémon Emera
 - 🧪 slickmaxim: fix Actions missing stb_image header after Icon Maker removal; preserve header and license in gpsp3ds/third_party; trust the mounted checkout inside the build container.
 
 - 🧪 slickmaxim: rename companion to Unbound Dual in docs, banners, HOME Menu metadata, artifact names and releases; CIA 0.0.5 retains Title ID and existing save/config paths.
+
+- 🧪 slickmaxim: exact-hash ES v1.08 support with relocated tables/Z-A forms/stones; independent English/Español interface catalogue, accented fonts, Spanish ROM font validation and optional real-ROM integration check. Hardware Spanish-save validation pending.
+
+- 🧪 Spanish follow-up: exact-hash profiles for v1.08 sinza and ES 2.1.1.1, separate original-size tables/natures and font CRCs. Real-ROM host checks cover all three ES builds with English overworld/battle RAM fixtures and per-ROM warm caches. User confirmed v1.08 and language switching on console; new variants still require hardware/save checks. CIA test version 0.0.7.
+
+- Fixed Spanish party artwork fallback: recover exact-ROM translated small font/status sheets, validate required slot/backdrop resources when reading existing caches, and automatically rebuild incomplete caches. Real-ROM regression checks require the native party renderer and cover valid-but-incomplete cache repair. CIA test version 0.0.8.
+- Party art lifecycle: reset owning slot/backdrop/type-sheet pointers before the allocation pool is freed, avoiding stale image frees on ROM reopen; integration checks redraw party/map after cache repair and warm reopen.
+
+- Fast forward: removed Max, default/migrate to 2x while preserving stored 2x/3x/4x values; retained Hold/Toggle. Added an allocation-free per-frame top-right speed badge for CPU/GPU, 400/800px and stereo output, independent of bottom-screen mode and filters. GPU rectangle clipping now follows the current viewport so the 800px badge is not culled. Host checks cover compatibility, cycling and rotated framebuffer badge bounds/removal. CIA test version 0.0.9; console validation pending.
+
+- Fixed-rate Bag presentation (CIA 0.0.11): reverted ce6daba's adaptive scrolling and inventory-row cache, restoring those paths to 135cc49. While Bag is open, force draw/present on a 33333 us timer regardless of input, dirty state, spare time or drawing cost. Other tabs keep original scheduling. No catch-up bursts after stalls; profile actual delivered Bag FPS and mean work cost. Fixed cadence host tests pass; actual console throughput and game-speed impact await validation.
+
+- Bag scroll updates (CIA 0.0.12). Keep the 30 Hz scroll target and redraw only the list and scrollbar for drag frames. Retain the sorted rows and static artwork between full draws, and update the affected rectangle in the bottom framebuffer once both buffers contain the current page. Stationary Bag uses the existing RAM polling and redraws on visible changes. Actual game and scroll performance await console validation.
+
+
+- Check Unbound Dual stable releases at startup using its own GitHub repository and project version. Show the release in settings, with installation through GitHub Releases. CIA test build 0.0.13.
+
+- Install updates from System. GitHub HTTPS certificate verification is required. The 3DSX installer validates the executable header and keeps a .bak file. The CIA installer validates the installed title ID and requires a higher package version before streaming to Application Manager. Release assets use the names unbound-dual.cia and unbound-dual.3dsx. Console validation requires a newer stable GitHub release.
+
+- Offer Update or Later before the first ROM loads (CIA 0.0.15). The startup check can be skipped with B or a tap. A skipped or failed update allows play to continue, and System retains the installation action.
+
+- Bag item use starts with the ROM preflight in `gpsp3ds/companion/tools/audit_unbound_items.py`. Six native item-use checks match all four supported ROMs. ES 2.1.1.1 has a shorter set of records with the expected medicine callback, and ES v1.08 has a relocated active item table. Gate requests by the live item record and ROM profile. TM01 has no field-use callback in these ROMs, so teaching needs its own native menu path. Next, add a frame-boundary gpSP call path with a bounded return and test it on disposable saves before connecting the existing item picker.
+
+- Bag item preview (CIA 0.1.0). Potion, Oran Berry and Ether passed on captured RAM with each supported ROM. The 3DS companion queues one action and gpSP runs it at a hardware wait in the field. Failed or read-only calls roll back work RAM. TM01's FireRed menu entry passes the CRC checks but reaches a null item-effect pointer during the Unbound test, so the TM button is withheld pending a verified CFRU menu path. Console input, JIT resume and save/reload still need hardware validation.
+
+- TM/HM preview (CIA 0.1.1, test 12). Validate the native party-menu routines and the item's TM pocket. Call the game's party menu initializer directly, since the generic wrapper treats the TM as a medicine record. Start and commit the menu transition together. The game controls teaching and returns to the field. Host tests cover TM01 opening without spending the item and restoring the original callback on rollback. Teaching and field return still need hardware testing.
+
+- Bag request timing (test 13). Execute the one-shot request during the verified Unbound VBlank SWI wait before the next IRQ. The main frame boundary only arms the request and handles timeout. Keep field, item and target checks at the execution point.
+
+- GPU Display is enabled for new configurations and applied once when an older configuration is imported (test 14). Later menu choices and the fallback after a GPU freeze are saved normally.
+
+- GPU startup recovery (test 15). Respect the stored GPU setting and use CPU display when L is held at startup. Fresh configurations default to GPU On, and the existing freeze guard still applies.
+
+- Prepare the Fast forward badge textures in tiled memory on the CPU during startup. GPU Display renders the game and badge normally, with no blocking texture transfer for the badge. Check startup with GPU On on Old 3DS.
+
+- Added an exact profile for the P.E. Russian 2.1.1.1 ROM (test 16). Read Russian names and descriptions from the ROM, keep native Party frames and fonts, and use Cyrillic labels on the Trainer Card. Host checks use the real RU ROM and baseline Unbound RAM fixtures. Console validation is pending.
+
+- Added Русский to Display → Interface language (test 17). The setting persists as `interface_language=ru`. Menus and companion tabs ship with Cyrillic glyphs for every supported ROM language.
+
+- v0.2.1 includes the Test 17 changes. The app reports v0.2.1 and the CIA uses package version 0.1.7, so Test 17 can detect and install the public release. Hardware update installation remains to be tested.

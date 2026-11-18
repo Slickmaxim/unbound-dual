@@ -21,6 +21,8 @@ enum pd_slot_frame {
 
 struct pd_party_art {
     const struct pd_party_style* style;
+    bool cyrillic;
+    uint8_t cyrillicWidths[256];
     uint32_t* frames[PD_SLOT_FRAMES]; // slotW x slotH; EMPTY only where the game draws one
     uint32_t* ball;                   // 32 x 64, closed over open; NULL where the game's sprite is blank
     uint32_t* status;                 // a row of 32 x 8 icons: PSN, PAR, SLP, FRZ, BRN, PKRS, FNT
@@ -28,6 +30,8 @@ struct pd_party_art {
     uint32_t* hold;                   // 8 x 16, an item over Mail; NULL where the ROM lost it
     const uint8_t* font;              // the blob itself
 };
+
+void cp_party_art_reset(void);
 
 const struct pd_party_art* pd_party_art_for(const struct pd_game* g);
 

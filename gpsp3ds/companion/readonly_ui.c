@@ -2,6 +2,7 @@
 #include "vendor/pd_ui_internal.h"
 #include <string.h>
 const struct pd_game* ui_game;
+bool cp_item_available(int item);
 void cp_ui_init(struct pd_ui *ui,struct pd_settings *settings){
     memset(ui,0,sizeof(*ui));ui->settings=settings;ui->tab=PD_TAB_PARTY;
     ui->summarySlot=ui->bagSelected=ui->pressedId=ui->focusId=-1;
@@ -17,7 +18,7 @@ void cp_ui_draw(struct pd_ui *ui,struct pd_canvas*c,const struct pd_game*g,const
     ui_game=g;ui->drawn=s;ui->drawnGame=g;ui->hitCount=0;
     pd_backdrop(c);
     struct pd_canvas content=*c;content.h=208;content.cy1=208;
-    struct pd_host_info host={0};
+    struct pd_host_info host={.itemCanUse=cp_item_available};
     if(ui->overlay==PD_OVERLAY_PLACES)ui_places_overlay(ui,c,g);
     else if(ui->tab==PD_TAB_PARTY)ui_party_tab(ui,&content,g,s,&host);
     else if(ui->tab==PD_TAB_BAG)ui_bag_tab(ui,&content,g,s,&host);
@@ -27,7 +28,9 @@ void cp_ui_draw(struct pd_ui *ui,struct pd_canvas*c,const struct pd_game*g,const
     for(int i=0;i<5;++i)ui_button(ui,c,2+i*64,212,60,24,names[i],9000+i);
 }
 static void activate(struct pd_ui*ui,int id){
-    if(id>=9000&&id<9004){static const enum pd_tab t[]={PD_TAB_PARTY,PD_TAB_BAG,PD_TAB_MAP,PD_TAB_CARD};ui->tab=t[id-9000];ui->overlay=PD_OVERLAY_NONE;ui->summarySlot=-1;return;}
+    if(ui->tab==PD_TAB_BAG && (id==HIT_BAG_USE || ui->itemPicking) && ui_bag_act(ui,id,ui->drawn))
+        return;
+    if(id>=9000&&id<9004){static const enum pd_tab t[]={PD_TAB_PARTY,PD_TAB_BAG,PD_TAB_MAP,PD_TAB_CARD};ui->tab=t[id-9000];ui->itemPicking=false;ui->overlay=PD_OVERLAY_NONE;ui->summarySlot=-1;return;}
     if(id==HIT_BACK){pd_ui_back(ui);return;}
     if(id>=HIT_SLOT&&id<HIT_SLOT+6){ui->summarySlot=id-HIT_SLOT;ui->summaryStats=ui->summaryInfo=false;return;}
     if(id>=HIT_SUMMARY_MON&&id<HIT_SUMMARY_MON+6){ui->summarySlot=id-HIT_SUMMARY_MON;return;}
@@ -53,9 +56,9 @@ bool cp_ui_touch(struct pd_ui*ui,int phase,int x,int y){
         int *scroll_target=ui->overlay==PD_OVERLAY_PLACES?&ui->placesScroll:ui->tab==PD_TAB_BAG?&ui->bagScroll:NULL;
         if(ui->barDragging){int span=ui->barH-ui->barThumb;
             if(scroll_target&&span>0)*scroll_target=ui_clamp_scroll((y-ui->barY-ui->barThumb/2)*ui->barMax/span,ui->barMax,0);
-            ui->dragging=true;return false;}
+            ui->touchLastY=y;ui->dragging=true;return false;}
         if(ui->touchScroll&&(y-ui->touchY0>5||ui->touchY0-y>5))ui->dragging=true;
-        if(ui->dragging&&scroll_target){*scroll_target-=y-ui->touchLastY;if(*scroll_target<0)*scroll_target=0;}
+        if(ui->dragging&&scroll_target){*scroll_target-=y-ui->touchLastY;if(ui->tab==PD_TAB_BAG)*scroll_target=ui_clamp_scroll(*scroll_target,ui->barMax,0);else if(*scroll_target<0)*scroll_target=0;}
         if(id!=ui->pressedId)ui->pressedId=-1;
         ui->touchLastY=y;
     }return false;

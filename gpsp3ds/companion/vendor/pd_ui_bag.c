@@ -1,3 +1,4 @@
+#include "../localization.h"
 // BAG: one pocket at a time in the game's own pocket order, its items in a
 // list a drag scrolls, and the tapped item's description - in each game's bag
 // colours (FireRedBag / EmeraldBag in the app's ItemsScreen.kt).
@@ -188,10 +189,17 @@ static void tabs(struct pd_ui* ui, struct pd_canvas* c, const struct pd_bag_pale
     }
 }
 
-static void list(struct pd_ui* ui, struct pd_canvas* c, const struct pd_bag_palette* p,
-                 const struct bag_view* v, int x, int y, int w, int h) {
-    int f = pd_layered_box(c, x, y, w, h, 3, p->panel, p->panelLayers, p->fill);
-    int ix = x + f, iy = y + f + 1, iw = w - 2 * f, ih = h - 2 * f - 2;
+// The full Bag draw retains its sorted rows and list geometry for scroll-only frames.
+static struct bag_view bag_view;
+static struct {
+    struct pd_ui* ui;
+    const struct pd_bag_palette* palette;
+    int x, y, w, h;
+} bag_list;
+
+static void list_content(struct pd_ui* ui, struct pd_canvas* c, const struct pd_bag_palette* p,
+                         const struct bag_view* v, int ix, int iy, int iw, int ih) {
+    ui->barMax = 0;
     ui_add_scroll_hit(ui, ix, iy, iw, ih, HIT_BAG_LIST);
     if (v->count == 0) {
         pd_text(c, ix + 14, pd_text_y(iy, BAG_ROW), "The bag is empty.", p->text, p->textShadow);
@@ -222,10 +230,10 @@ static void list(struct pd_ui* ui, struct pd_canvas* c, const struct pd_bag_pale
         const char* name = row->name;
         char fallback[16];
         if (!*name) {
-            snprintf(fallback, sizeof(fallback), "ITEM %d", it->id);
+            snprintf(fallback, sizeof(fallback), ud_tr("ITEM %d"), it->id);
             name = fallback;
         }
-        pd_text_fit(c, ix + 14, pd_text_y(ry, BAG_ROW), iw - 64, name, p->text, p->textShadow);
+        pd_text_fit_raw(c, ix + 14, pd_text_y(ry, BAG_ROW), iw - 64, name, p->text, p->textShadow);
         if (row->quantity) {
             char qty[12];
             snprintf(qty, sizeof(qty), "× %d", it->quantity);
@@ -242,13 +250,34 @@ static void list(struct pd_ui* ui, struct pd_canvas* c, const struct pd_bag_pale
     ui_list_rail(ui, c, ix + iw, iy, ih, ui->bagScroll, v->count * BAG_ROW);
 }
 
+// Retain the existing canvas outside the list, including the description and navigation.
+bool cp_bag_draw_list(struct pd_ui* ui, struct pd_canvas* c, int rect[4]) {
+    if (bag_list.ui != ui) return false;
+    int keep = 0;
+    for (int i = 0; i < ui->hitCount; ++i) {
+        int id = ui->hits[i].id;
+        if (id == HIT_BAG_LIST || id == HIT_SCROLL_BAR ||
+            (id >= HIT_BAG_ROW && id < HIT_BAG_ROW_END)) continue;
+        ui->hits[keep++] = ui->hits[i];
+    }
+    ui->hitCount = keep;
+    int x = bag_list.x, y = bag_list.y, w = bag_list.w, h = bag_list.h;
+    pd_fill(c, x, y, w, h, bag_list.palette->fill);
+    list_content(ui, c, bag_list.palette, &bag_view, x, y, w, h);
+    rect[0] = x; rect[1] = y; rect[2] = w; rect[3] = h;
+    return true;
+}
+
 // The picked item's description, a window along the bottom (ItemsScreen's), USE / GIVE at its right where they work.
 static void description(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g, const struct pd_bag_palette* p,
                         const struct pd_host_info* host, int id, int y) {
     int x = MARGIN, w = c->w - 2 * MARGIN, h = c->h - y - MARGIN;
     int f = pd_layered_box(c, x, y, w, h, 3, p->desc, p->descLayers, p->descFill);
     bool use = host && host->itemCanUse && host->itemCanUse(id), give = host && host->itemCanGive && host->itemCanGive(id);
-    int bw = 44, room = use || give ? bw + 6 : 0;
+    int bw = 44;
+    if (use && pd_text_width("USE") + 8 > bw) bw = pd_text_width("USE") + 8;
+    if (give && pd_text_width("GIVE") + 8 > bw) bw = pd_text_width("GIVE") + 8;
+    int room = use || give ? bw + 6 : 0;
     const char* text = ui->bagSource ? ui->bagSource->name(ui->bagSource->ctx, id) : pd_item_description(g, id);
     if (!*text) text = pd_item_name(g, id);
     int tx = x + f + 6, tw = w - 2 * (f + 6) - room;
@@ -270,8 +299,8 @@ static void item_picker(struct pd_ui* ui, struct pd_canvas* c, const struct pd_g
     if (top.cy1 > y) top.cy1 = y;
     ui_item_grid(ui, &top, g, s);
     int x = MARGIN, w = c->w - 2 * MARGIN;
-    char text[64];
-    snprintf(text, sizeof(text), ui->itemGive ? "Give %s to which POKéMON?" : "Use %s on which POKéMON?", pd_item_name(g, ui->itemId));
+    char text[160];
+    snprintf(text, sizeof(text), ud_tr(ui->itemGive ? "Give %s to which POKéMON?" : "Use %s on which POKéMON?"), pd_item_name(g, ui->itemId));
     int f = pd_title_box(c, x, y, w, barH, PD_TITLE_FILL);
     pd_text_fit(c, x + f + 5, pd_text_y(y, barH), w - 84, text, PD_TITLE_TEXT, PD_TITLE_SHADOW);
     ui_button(ui, c, x + w - 68, y + 3, 62, barH - 6, "CANCEL", HIT_ITEM_CANCEL);
@@ -354,7 +383,8 @@ bool ui_bag_act(struct pd_ui* ui, int id, const struct pd_snapshot* s) {
 
 void ui_bag_tab(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g, const struct pd_snapshot* s,
                 const struct pd_host_info* host) {
-    // Read-only companion: no item picker or item-application actions.
+    bag_list.ui = NULL;
+    if (ui->itemPicking) { item_picker(ui,c,g,s); return; }
     if (!s->bagOk) {
         ui_notice(c, "NO BAG YET", "The bag shows once the game", "has loaded a save.");
         return;
@@ -363,19 +393,26 @@ void ui_bag_tab(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g, 
     if (p->hasBackdrop) {
         for (int y = 0; y < c->h; y += 8) pd_fill(c, 0, y, c->w, 8, (y / 8) % 2 ? p->backdropB : p->backdropA);
     }
-    static struct bag_view v;
-    gather(ui, g, s, &v);
-    ui->bagTabCount = v.tabs;
-    if (ui->bagSort == 1) qsort(v.rows, (size_t) v.count, sizeof(v.rows[0]), by_name);
-    else if (ui->bagSort == 2) qsort(v.rows, (size_t) v.count, sizeof(v.rows[0]), by_count);
-    if (ui->bagSelected >= v.count) ui->bagSelected = -1;
+    gather(ui, g, s, &bag_view);
+    ui->bagTabCount = bag_view.tabs;
+    if (ui->bagSort == 1) qsort(bag_view.rows, (size_t) bag_view.count, sizeof(bag_view.rows[0]), by_name);
+    else if (ui->bagSort == 2) qsort(bag_view.rows, (size_t) bag_view.count, sizeof(bag_view.rows[0]), by_count);
+    if (ui->bagSelected >= bag_view.count) ui->bagSelected = -1;
     int tabW = c->w * 27 / 100, panelX = MARGIN + tabW - (ui->shoulderTabs ? 0 : 3);
     bool details = ui->bagSelected >= 0 && (!ui->bagSource || ui->bagDetails);
     int bottom = details ? c->h - MARGIN - DESC_H - 4 : c->h - MARGIN;
-    list(ui, c, p, &v, panelX, CONTENT_Y, c->w - MARGIN - panelX, bottom - CONTENT_Y);
+    int panelW = c->w - MARGIN - panelX, panelH = bottom - CONTENT_Y;
+    int frame = pd_layered_box(c, panelX, CONTENT_Y, panelW, panelH, 3, p->panel, p->panelLayers, p->fill);
+    bag_list.ui = ui;
+    bag_list.palette = p;
+    bag_list.x = panelX + frame;
+    bag_list.y = CONTENT_Y + frame + 1;
+    bag_list.w = panelW - 2 * frame;
+    bag_list.h = panelH - 2 * frame - 2;
+    list_content(ui, c, p, &bag_view, bag_list.x, bag_list.y, bag_list.w, bag_list.h);
     const bool sort = !details && (ui->shoulderTabs || ui->bagSelected < 0);
     const int sortY = c->h - MARGIN - 22;
-    tabs(ui, c, p, &v, MARGIN, tabW - 4, sort ? sortY - 3 : bottom, panelX);
+    tabs(ui, c, p, &bag_view, MARGIN, tabW - 4, sort ? sortY - 3 : bottom, panelX);
     if (sort) {
         // SORT: under the tabs, like the description bar's corner.
         static const char* const SORTS[3] = { "DEFAULT", "NAME", "COUNT" };
@@ -389,7 +426,7 @@ void ui_bag_tab(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g, 
         ui_add_hit(ui, MARGIN, sy, sw, 22, HIT_BAG_SORT);
     }
     if (details) {
-        ui->bagItemShown = v.rows[ui->bagSelected].item.id;
+        ui->bagItemShown = bag_view.rows[ui->bagSelected].item.id;
         description(ui, c, g, p, ui->bagSource ? NULL : host, ui->bagItemShown, bottom + 4);
     }
 }
