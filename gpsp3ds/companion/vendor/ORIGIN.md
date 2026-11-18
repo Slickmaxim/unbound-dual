@@ -9,3 +9,5 @@ v3 also imports pd_card.c from the same local tree. pd_ui_card.c uses its render
 ES v1.08 adaptation: exact-hash ROM configuration, display-table generator and translated Latin-font CRCs; shared Western charset extensions and interface localization hooks. Original notices are preserved. Spanish ROM display text retains its respective authorship; no game graphics are bundled.
 
 Spanish follow-up: separate exact-hash profiles for v1.08 sinza and ES 2.1.1.1, ROM-specific generated display data/natures and font CRCs. The optional nature-name field preserves existing upstream tables when absent. All three variants use their own ROM resources and SHA-keyed cache; no extracted graphics are included.
+
+Spanish party artwork fix: CRC-validated recovery of translated FONT_SMALL/status resources from the user's exact ROM, plus complete-party cache validation and regression checks. No game graphics are bundled.

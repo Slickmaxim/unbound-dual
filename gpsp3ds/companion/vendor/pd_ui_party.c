@@ -221,7 +221,6 @@ static void status_chip(struct pd_canvas* c, int x, int y, const char* label) {
 
 static uint32_t *cp_slot_scratch, *cp_party_pixels;
 static size_t cp_slot_capacity;
-void cp_party_reset(void) { cp_slot_scratch = cp_party_pixels = NULL; cp_slot_capacity = 0; }
 
 // An empty slot: its box, faint over the backdrop (drawn whole, then blended in).
 static void faded_slot(struct pd_canvas* c, int x, int y, int w, int h, const struct slot_geometry* g,
@@ -317,6 +316,11 @@ static int art_text_y(const struct art_geometry* a, int v) {
 // The window as it stands: frame, text and HP bar, at one game pixel a pixel. As big as a cell has needed.
 static uint32_t* window;
 static int windowSize;
+
+void cp_party_reset(void) {
+    cp_slot_scratch=cp_party_pixels=window=NULL;
+    cp_slot_capacity=0;windowSize=0;
+}
 
 // The frame, grown by repeating its uniform columns and rows; a band frame gets its diagonals redrawn (buildBandFrame).
 static bool art_frame(const struct pd_party_art* art, enum pd_slot_frame frame, const struct art_geometry* a) {

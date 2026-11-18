@@ -19,6 +19,27 @@ static void screenshot(const char*dir,const char*name){
  FILE*f=fopen(path,"wb");assert(f);fprintf(f,"P6\n320 240\n255\n");
  for(int i=0;i<320*240;i++){unsigned c=frame[i];unsigned char rgb[3]={((c>>11)&31)*255/31,((c>>5)&63)*255/63,(c&31)*255/31};fwrite(rgb,1,3,f);}fclose(f);
 }
+// Reproduce the previous valid-but-incomplete v3 cache, including a valid
+// checksum, so merely accepting the old cache cannot make this test pass.
+static void omit_cached_blob(const char*dir,const char*sha,enum pd_blob id){
+ char path[1200];snprintf(path,sizeof(path),"%s/%s-v3.bin",dir,sha);
+ FILE*f=fopen(path,"rb");assert(f);fseek(f,0,SEEK_END);long length=ftell(f);rewind(f);
+ assert(length>52&&length<2*1024*1024);unsigned char*bytes=malloc(length);assert(bytes);
+ assert(fread(bytes,1,length,f)==(size_t)length);fclose(f);
+ uint32_t version,count;memcpy(&version,bytes+4,4);memcpy(&count,bytes+48,4);
+ assert(version==3&&count==PD_BLOB_COUNT);
+ size_t at=52;
+ for(int i=0;i<PD_BLOB_COUNT;i++){
+  uint32_t n;assert(at+4<=(size_t)length);memcpy(&n,bytes+at,4);assert(at+4+n<=(size_t)length);
+  if(i==id){
+   assert(n>0);memset(bytes+at,0,4);memmove(bytes+at+4,bytes+at+4+n,length-at-4-n);length-=n;break;
+  }
+  at+=4+n;
+ }
+ uint32_t hash=2166136261u;for(long i=0;i<length-4;i++)hash=(hash^bytes[i])*16777619u;
+ memcpy(bytes+length-4,&hash,4);f=fopen(path,"wb");assert(f);
+ assert(fwrite(bytes,1,length,f)==(size_t)length);assert(!fclose(f));free(bytes);
+}
 int main(int argc,char**argv){
  assert(argc==4);
  // Read baseline RAM with the verified common addresses, while all ROM art,
@@ -49,6 +70,11 @@ int main(int argc,char**argv){
  assert(!strcmp(S->game.cfg->text->mapsecs[0x59],legacy?"Ciudad Bellin":"Pueblo Bellin"));
  assert(!strcmp(pd_item_name(&S->game,710),legacy?"Esp. Oxidada":"Espada Oxidada"));
  assert(!strcmp(pd_move_name(&S->game,900,(char[80]){0},80),legacy?"Gigarrosión":"Gigacorros."));
+ const struct pd_party_style* style=S->game.entry->partyStyle;assert(style);
+ const int party_blobs[]={style->gfx,style->pal,style->slotMain,style->slotNoHp,style->slotEmpty,style->status,style->statusPal,style->font,style->ball,style->ballPal};
+ for(unsigned i=0;i<sizeof(party_blobs)/sizeof(party_blobs[0]);i++)assert(pd_romart_blob(&S->game,party_blobs[i]));
+ assert(pd_romart_party_ready(&S->game));
+ assert(pd_party_art_for(&S->game));
  const struct pd_map_art* map=pd_map_art(&S->game);assert(map&&map->ok&&map->pages>0);
  char name[80];assert(!strcmp(pd_move_name(&S->game,33,name,sizeof(name)),"Placaje"));
  assert(!strcmp(pd_move_name(&S->game,45,name,sizeof(name)),"Gruñido"));
@@ -92,7 +118,21 @@ int main(int argc,char**argv){
  assert(!memcmp(saved_ew,ewram,sizeof(saved_ew))&&!memcmp(saved_iw,iwram+32768,sizeof(saved_iw)));
  cp_adapter_close();assert(companion_memory()==0);
  assert(cp_adapter_open(argv[1]));assert(!strcmp(companion_cache_status(),"hit"));
- assert(pd_romart_blob(&S->game,PD_FR_FONT_NORMAL));cp_adapter_close();assert(companion_memory()==0);
+ assert(pd_romart_blob(&S->game,PD_FR_FONT_NORMAL));assert(pd_party_art_for(&S->game));
+ char sha[41];snprintf(sha,sizeof(sha),"%s",S->game.sha1);
+ cp_adapter_close();assert(companion_memory()==0);
+ omit_cached_blob(argv[3],sha,legacy?PD_UB_STATUS_GFX:PD_FR_FONT_SMALL);
+ assert(cp_adapter_open(argv[1]));assert(!strcmp(companion_cache_status(),"rebuilt"));
+ assert(pd_romart_party_ready(&S->game)&&pd_party_art_for(&S->game));
+ assert(companion_update(1));S->ui.tab=PD_TAB_PARTY;S->dirty=true;companion_draw(frame);
+ S->ui.tab=PD_TAB_MAP;S->dirty=true;companion_draw(frame);
+ cp_adapter_close();assert(companion_memory()==0);
+ assert(cp_adapter_open(argv[1]));assert(!strcmp(companion_cache_status(),"hit"));
+ assert(pd_romart_party_ready(&S->game)&&pd_party_art_for(&S->game));
+ assert(companion_update(1));S->ui.tab=PD_TAB_PARTY;S->dirty=true;companion_draw(frame);
+ S->ui.tab=PD_TAB_MAP;S->dirty=true;companion_draw(frame);
+ cp_adapter_close();assert(companion_memory()==0);
+ puts("Party artwork: native slots/backdrop, old incomplete cache repair, subsequent warm cache PASS");
  free(image);memset(memory_map_read,0,sizeof(memory_map_read));
  puts("ES real-ROM preparation and cleanup PASS (baseline RAM fixture; hardware save testing still required)");
 }

@@ -29,6 +29,8 @@ struct pd_party_art {
     const uint8_t* font;              // the blob itself
 };
 
+void cp_party_art_reset(void);
+
 const struct pd_party_art* pd_party_art_for(const struct pd_game* g);
 
 // The game's type tags (TypeBadge): its 128x128 sheet read from the ROM, 0 see-through, or NULL (not an English FireRed /

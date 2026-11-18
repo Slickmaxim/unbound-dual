@@ -47,7 +47,7 @@ static const char*cache_status="not loaded";
 const char*companion_cache_status(void){return cache_status;}
 void companion_close(void){
     supported=false;
-    cp_card_reset();cp_map_reset();cp_art_reset();cp_party_reset();cp_free_all();S=NULL;
+    cp_card_reset();cp_map_reset();cp_party_art_reset();cp_art_reset();cp_party_reset();cp_free_all();S=NULL;
     error="Companion is not loaded";
 }
 bool companion_load(const uint8_t header[192],size_t size,cp_read_fn read,
@@ -76,7 +76,9 @@ bool companion_load(const uint8_t header[192],size_t size,cp_read_fn read,
     cp_ui_init(&S->ui,&S->settings);
     // Asset discovery happens with emulation paused, never in the game loop.
     cp_progress("Reading cache",0,0);
-    if(!cp_cache_load(cache_directory,&S->game)){
+    // Older ES caches can be valid yet lack a translated font/status sheet,
+    // which used to disable all slot artwork. Rebuild those once on upgrade.
+    if(!cp_cache_load(cache_directory,&S->game) || !pd_romart_party_ready(&S->game)){
         cp_art_reset();cp_map_reset();cp_allocation_clear_failure();
         cp_progress("Finding graphics",0,0);
         pd_romart_scan(&S->game);

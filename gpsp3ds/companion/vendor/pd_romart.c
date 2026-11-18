@@ -182,19 +182,28 @@ void pd_romart_scan(const struct pd_game* g) {
     for (int i = 0; i < n; i++) found[wanted[i]] = decoded[i];
     const struct pd_unbound_es_profile* profile = pd_unbound_es_profile(g->sha1);
     if (profile) {
-        // Spanish patches redraw the Latin normal font. Read from the exact ROM,
-        // validating the translated bytes instead of expecting English CRCs.
-        const struct { enum pd_blob id; uint32_t offset, crc; } local[] = {
-            {PD_FR_FONT_NORMAL, 0x081F3100, profile->normalFontCRC},
-            {PD_FR_FONT_NORMAL_WIDTHS, 0x081FB100, profile->normalWidthsCRC}
+        // Translated fonts/status labels can differ while their slot geometry
+        // is unchanged. Recover only known resources from this exact ROM.
+        const struct { enum pd_blob id; uint32_t offset, crc; bool lz; } local[] = {
+            {PD_FR_FONT_NORMAL, 0x081F3100, profile->normalFontCRC, false},
+            {PD_FR_FONT_NORMAL_WIDTHS, 0x081FB100, profile->normalWidthsCRC, false},
+            {PD_FR_FONT_SMALL, 0x081EAF00, profile->smallFontCRC, false},
+            {PD_UB_STATUS_GFX, 0x08B1E280, profile->statusGfxCRC, true}
         };
         for (unsigned i=0;i<sizeof(local)/sizeof(local[0]);i++) {
             enum pd_blob id=local[i].id;
             if (found[id]) continue;
             size_t size=pd_blob_sigs[id].size;
             uint8_t* bytes=malloc(size);
-            if (bytes && pd_rom_read(g,local[i].offset,bytes,size) && pd_crc32(bytes,size)==local[i].crc)
-                found[id]=bytes;
+            bool ok=false;
+            if (bytes && local[i].lz) {
+                size_t input=size+size/8u+16u;
+                const uint8_t* source=pd_rom_at(g,local[i].offset,input);
+                ok=source && pd_lz77(source,input,bytes,size)==size;
+            } else if (bytes) {
+                ok=pd_rom_read(g,local[i].offset,bytes,size);
+            }
+            if (ok && pd_crc32(bytes,size)==local[i].crc) found[id]=bytes;
             else free(bytes);
         }
     }
@@ -205,6 +214,21 @@ const uint8_t* pd_romart_blob(const struct pd_game* g, enum pd_blob b) {
     return b >= 0 && b < PD_BLOB_COUNT ? found[b] : NULL;
 }
 
+
+bool pd_romart_party_ready(const struct pd_game* g) {
+    const struct pd_game_entry* entry=g->entry;
+    const struct pd_party_style* st=entry ? entry->partyStyle : NULL;
+    if (!st) return false;
+    const short blobs[]={st->gfx,st->pal,st->slotMain,st->slotNoHp,st->slotEmpty,
+                         st->ball,st->ballPal,st->status,st->statusPal,st->font};
+    for (unsigned i=0;i<sizeof(blobs)/sizeof(blobs[0]);i++)
+        if (blobs[i]>=0 && !pd_romart_blob(g,blobs[i])) return false;
+    for (int i=0;i<entry->partyBackdropCount;i++) {
+        const struct pd_party_backdrop* b=&entry->partyBackdrops[i];
+        if (pd_romart_blob(g,b->gfx) && pd_romart_blob(g,b->pal) && pd_romart_blob(g,b->map)) return true;
+    }
+    return false;
+}
 
 void cp_art_reset(void) { for (int i=0;i<PD_BLOB_COUNT;++i) { free(found[i]); found[i]=NULL; } foundRom=0; }
 

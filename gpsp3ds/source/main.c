@@ -3144,7 +3144,7 @@ static void menu_build(int tab)
          else
             snprintf(about, sizeof(about), FRONTEND_NAME
 #ifdef CP_ENABLED
-                     " v0.2.0 ES test 2"
+                     " v0.2.0 ES test 3"
 #else
                      " " GPSP3D_VERSION
 #endif

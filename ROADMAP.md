@@ -195,3 +195,6 @@ Sonic Advance 1 and 2, Ace Combat Advance, Asterix, Downhill Jam, Pokémon Emera
 - 🧪 slickmaxim: exact-hash ES v1.08 support with relocated tables/Z-A forms/stones; independent English/Español interface catalogue, accented fonts, Spanish ROM font validation and optional real-ROM integration check. Hardware Spanish-save validation pending.
 
 - 🧪 Spanish follow-up: exact-hash profiles for v1.08 sinza and ES 2.1.1.1, separate original-size tables/natures and font CRCs. Real-ROM host checks cover all three ES builds with English overworld/battle RAM fixtures and per-ROM warm caches. User confirmed v1.08 and language switching on console; new variants still require hardware/save checks. CIA test version 0.0.7.
+
+- Fixed Spanish party artwork fallback: recover exact-ROM translated small font/status sheets, validate required slot/backdrop resources when reading existing caches, and automatically rebuild incomplete caches. Real-ROM regression checks require the native party renderer and cover valid-but-incomplete cache repair. CIA test version 0.0.8.
+- Party art lifecycle: reset owning slot/backdrop/type-sheet pointers before the allocation pool is freed, avoiding stale image frees on ROM reopen; integration checks redraw party/map after cache repair and warm reopen.

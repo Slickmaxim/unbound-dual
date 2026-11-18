@@ -26,7 +26,7 @@ done
 python3 tools/companion-cia-tools.py
 export PATH="$PWD/.cia-tools:$PATH"
 mkdir -p build-cia-companion
-bannertool makesmdh -s "Unbound Dual" -l "Unbound Dual v0.2.0 ES test 2" -p "gpSP / PokeDaisy" -f visible,allow3d,recordusage,extendedbanner -i res/icon.png -o build-cia-companion/app.icn
+bannertool makesmdh -s "Unbound Dual" -l "Unbound Dual v0.2.0 ES test 3" -p "gpSP / PokeDaisy" -f visible,allow3d,recordusage,extendedbanner -i res/icon.png -o build-cia-companion/app.icn
 bannertool makebanner -i res/unbound-dual-banner.png -a res/silent.wav -o build-cia-companion/banner.bnr
-makerom -f cia -o out/unbound-dual.cia -rsf res/app.rsf -exefslogo -elf unbound-dual.elf -icon build-cia-companion/app.icn -banner build-cia-companion/banner.bnr -DAPP_TITLE="UnboundD" -DAPP_PRODUCT_CODE="CTR-UBCP" -DAPP_UNIQUE_ID=0xBAC82 -DAPP_SYSTEM_MODE=64MB -DAPP_SYSTEM_MODE_EXT=124MB -DAPP_ENCRYPTED=false -major 0 -minor 0 -micro 7
+makerom -f cia -o out/unbound-dual.cia -rsf res/app.rsf -exefslogo -elf unbound-dual.elf -icon build-cia-companion/app.icn -banner build-cia-companion/banner.bnr -DAPP_TITLE="UnboundD" -DAPP_PRODUCT_CODE="CTR-UBCP" -DAPP_UNIQUE_ID=0xBAC82 -DAPP_SYSTEM_MODE=64MB -DAPP_SYSTEM_MODE_EXT=124MB -DAPP_ENCRYPTED=false -major 0 -minor 0 -micro 8
 cp ../LICENSE ../COPYING ../NOTICE ../THIRD_PARTY_NOTICES.md out/
