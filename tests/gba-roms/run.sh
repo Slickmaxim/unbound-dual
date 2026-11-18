@@ -39,6 +39,13 @@ OBJS=$(ls *.o arm/*.o libretro/*.o libretro/libretro-common/*/*.o)
 arm-linux-gnueabihf-gcc -O1 -Ilibretro -Ilibretro/libretro-common/include "$HERE/harness.c" $OBJS \
   -lstdc++ -lpthread -lm -o "$WORK/harness"
 
+arm-linux-gnueabihf-gcc -O1 "$HERE/guest_call.c" $OBJS -lstdc++ -lpthread -lm -o "$WORK/guest_call"
+qemu-arm "$WORK/guest_call"
+if [ -n "${UNBOUND_TEST_ROM:-}" ] && [ -n "${UNBOUND_RAM_FIXTURE:-}" ]; then
+  arm-linux-gnueabihf-gcc -O1 "$HERE/unbound_item.c" $OBJS -lstdc++ -lpthread -lm -o "$WORK/unbound_item"
+  qemu-arm "$WORK/unbound_item" "$UNBOUND_TEST_ROM" "$UNBOUND_RAM_FIXTURE/ewram.bin" "$UNBOUND_RAM_FIXTURE/iwram.bin"
+fi
+
 fail=0
 echo "== self-modifying code (smc.gba)"
 ref=$(qemu-arm "$WORK/harness" "$WORK/smc.gba" 0 500)
