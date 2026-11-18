@@ -52,3 +52,8 @@ if(COMPANION_TESTS)
  add_executable(companion-fast-forward-test test/fast_forward_test.c)
  target_compile_options(companion-fast-forward-test PRIVATE -UNDEBUG)
 endif()
+
+if(COMPANION_TESTS)
+ add_executable(companion-scroll-refresh-test test/scroll_refresh_test.c)
+ target_compile_options(companion-scroll-refresh-test PRIVATE -UNDEBUG)
+endif()

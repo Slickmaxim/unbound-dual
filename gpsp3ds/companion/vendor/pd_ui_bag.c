@@ -36,6 +36,20 @@ struct bag_view {
     struct bag_row rows[MAX_ROWS];
 };
 
+// Retain the gathered/sorted rows while dragging. Inventory changes, ROM,
+// pocket and sorting invalidate the view; custom backends always rebuild.
+static struct bag_view cached_view;
+static struct {
+    bool valid;
+    unsigned rom;
+    int pocket, sort;
+    struct pd_pocket_items bag[PD_POCKET_COUNT];
+} view_key;
+static int seenSel=-1,seenFocus=-1;
+void cp_bag_reset(void) {
+    view_key.valid=false;seenSel=seenFocus=-1;
+}
+
 // The game's pockets folded into PD_POCKET_*, each once, in the order the game first lists it.
 static int base_pockets(const struct pd_game* g, int out[PD_POCKET_COUNT]) {
     int n = 0;
@@ -202,7 +216,6 @@ static void list(struct pd_ui* ui, struct pd_canvas* c, const struct pd_bag_pale
     if (maxScroll < 0) maxScroll = 0;
     // The selected row, and the row a host's D-pad cursor is on, come wholly into view when they change (a row cut at
     // the window's edge); after that the list scrolls freely (the D-pad walks on past the window).
-    static int seenSel = -1, seenFocus = -1;
     if (ui->bagSelected >= 0 && (ui->bagSource || ui->bagSelected != seenSel))
         ui->bagScroll = ui_scroll_to(ui->bagScroll, ui->bagSelected * BAG_ROW, BAG_ROW, ih);
     if (ui->focusId != seenFocus && ui->focusId >= HIT_BAG_ROW && ui->focusId < HIT_BAG_ROW + v->count)
@@ -364,19 +377,29 @@ void ui_bag_tab(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g, 
     if (p->hasBackdrop) {
         for (int y = 0; y < c->h; y += 8) pd_fill(c, 0, y, c->w, 8, (y / 8) % 2 ? p->backdropB : p->backdropA);
     }
-    static struct bag_view v;
-    gather(ui, g, s, &v);
-    ui->bagTabCount = v.tabs;
-    if (ui->bagSort == 1) qsort(v.rows, (size_t) v.count, sizeof(v.rows[0]), by_name);
-    else if (ui->bagSort == 2) qsort(v.rows, (size_t) v.count, sizeof(v.rows[0]), by_count);
-    if (ui->bagSelected >= v.count) ui->bagSelected = -1;
+    struct bag_view* view=&cached_view;
+    unsigned rom=pd_rom_id(g);
+    bool reuse=!ui->bagSource&&view_key.valid&&view_key.rom==rom&&
+        view_key.pocket==ui->bagPocket&&view_key.sort==ui->bagSort&&
+        !memcmp(view_key.bag,s->bag,sizeof(s->bag));
+    if (!reuse) {
+        gather(ui,g,s,view);
+        if (ui->bagSort==1) qsort(view->rows,(size_t)view->count,sizeof(view->rows[0]),by_name);
+        else if (ui->bagSort==2) qsort(view->rows,(size_t)view->count,sizeof(view->rows[0]),by_count);
+        view_key.valid=!ui->bagSource;view_key.rom=rom;
+        view_key.pocket=ui->bagPocket;view_key.sort=ui->bagSort;
+        if (view_key.valid) memcpy(view_key.bag,s->bag,sizeof(s->bag));
+    }
+    const struct bag_view* v=view;
+    ui->bagTabCount=v->tabs;
+    if (ui->bagSelected >= v->count) ui->bagSelected = -1;
     int tabW = c->w * 27 / 100, panelX = MARGIN + tabW - (ui->shoulderTabs ? 0 : 3);
     bool details = ui->bagSelected >= 0 && (!ui->bagSource || ui->bagDetails);
     int bottom = details ? c->h - MARGIN - DESC_H - 4 : c->h - MARGIN;
-    list(ui, c, p, &v, panelX, CONTENT_Y, c->w - MARGIN - panelX, bottom - CONTENT_Y);
+    list(ui, c, p, v, panelX, CONTENT_Y, c->w - MARGIN - panelX, bottom - CONTENT_Y);
     const bool sort = !details && (ui->shoulderTabs || ui->bagSelected < 0);
     const int sortY = c->h - MARGIN - 22;
-    tabs(ui, c, p, &v, MARGIN, tabW - 4, sort ? sortY - 3 : bottom, panelX);
+    tabs(ui, c, p, v, MARGIN, tabW - 4, sort ? sortY - 3 : bottom, panelX);
     if (sort) {
         // SORT: under the tabs, like the description bar's corner.
         static const char* const SORTS[3] = { "DEFAULT", "NAME", "COUNT" };
@@ -390,7 +413,7 @@ void ui_bag_tab(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g, 
         ui_add_hit(ui, MARGIN, sy, sw, 22, HIT_BAG_SORT);
     }
     if (details) {
-        ui->bagItemShown = v.rows[ui->bagSelected].item.id;
+        ui->bagItemShown = v->rows[ui->bagSelected].item.id;
         description(ui, c, g, p, ui->bagSource ? NULL : host, ui->bagItemShown, bottom + 4);
     }
 }

@@ -11,3 +11,5 @@ ES v1.08 adaptation: exact-hash ROM configuration, display-table generator and t
 Spanish follow-up: separate exact-hash profiles for v1.08 sinza and ES 2.1.1.1, ROM-specific generated display data/natures and font CRCs. The optional nature-name field preserves existing upstream tables when absent. All three variants use their own ROM resources and SHA-keyed cache; no extracted graphics are included.
 
 Spanish party artwork fix: CRC-validated recovery of translated FONT_SMALL/status resources from the user's exact ROM, plus complete-party cache validation and regression checks. No game graphics are bundled.
+
+Bag adaptation: reuse gathered/sorted read-only rows while the inventory/pocket/sort/ROM is unchanged; reset on close. Preserve original painting and touch behavior, with host-side adaptive input scheduling.

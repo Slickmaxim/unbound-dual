@@ -1,6 +1,7 @@
 #include "fast_forward.h"
 #ifdef CP_ENABLED
 #include "../companion/localization.h"
+#include "../companion/scroll_refresh.h"
 #else
 #define ud_tr(s) (s)
 #endif
@@ -3179,7 +3180,7 @@ static void menu_build(int tab)
          else
             snprintf(about, sizeof(about), FRONTEND_NAME
 #ifdef CP_ENABLED
-                     " v0.2.0 test 4"
+                     " v0.2.0 test 5"
 #else
                      " " GPSP3D_VERSION
 #endif
@@ -3870,6 +3871,7 @@ static void run_game(void)
    int cp_touch_x = 0, cp_touch_y = 0;
    u64 cp_last_update = 0;
    u64 cp_work_ticks = (u64)(TICKS_PER_MS * 3);
+   struct cp_scroll_refresh cp_scroll={0};
 #endif
 
    {
@@ -3967,6 +3969,7 @@ static void run_game(void)
 #ifdef CP_ENABLED
          companion_prepare();
          cp_redraw = opt_bottom == 3;
+         cp_scroll=(struct cp_scroll_refresh){0};
 #endif
          guide_invalidate();   /* the menu drew over the canvas */
          guide_dirty = guide_shown;
@@ -4042,18 +4045,22 @@ static void run_game(void)
 #ifdef CP_ENABLED
       if (opt_bottom == 3 && !guide_shown) {
          u64 begin = svcGetSystemTick();
-         // Spend idle time before audio pacing; when saturated, refresh no
-         // more than once a second. Taps still receive an immediate response.
+         uint64_t begin_us=begin/(SYSCLOCK_ARM11/1000000ULL);
+         bool bag_input=companion_bag_interaction_pending();
+         bool scroll_due=bag_input&&cp_scroll_due(&cp_scroll,begin_us);
+         // RAM-only changes use spare time. Active Bag input has its own
+         // 24-30 Hz target so a busy game cannot postpone a drag for a second.
          bool spare = begin + cp_work_ticks < t0 + (u64)(TICKS_PER_MS * 16.0);
          bool overdue = begin - cp_last_update >= SYSCLOCK_ARM11;
-         if (cp_redraw || spare || overdue) {
-            bool changed = companion_update(begin / (SYSCLOCK_ARM11 / 1000000ULL));
+         if (cp_redraw || scroll_due || (!bag_input && (spare || overdue))) {
+            bool changed = companion_update(begin_us);
             if (cp_redraw || changed) {
                companion_draw(ui_canvas);
                ui_present();
                cp_work_ticks = svcGetSystemTick() - begin;
                unsigned us = (unsigned)(cp_work_ticks / (SYSCLOCK_ARM11 / 1000000ULL));
                companion_feedback(us);
+               if (bag_input) cp_scroll_feedback(&cp_scroll,begin_us,us);
                cp_last_update = begin;
                cp_redraw = false;
             }
@@ -4173,11 +4180,17 @@ static void run_game(void)
          }
 #ifdef CP_ENABLED
          if (opt_bottom == 3 && sess_frames % 300 < 60) {
-            char cp_line[160];
+            char cp_line[220];
             snprintf(cp_line, sizeof(cp_line), ud_tr("Companion: work %lu us, interval %u ms, memory %lu KiB"),
                   (unsigned long)(cp_work_ticks / (SYSCLOCK_ARM11 / 1000000ULL)),
                   companion_interval_ms(), (unsigned long)(companion_memory() / 1024));
             prof_log_line(cp_line);
+            if (cp_scroll.drawn) {
+               unsigned period=cp_scroll_period_us(cp_scroll.draw_us);
+               snprintf(cp_line,sizeof(cp_line),"Bag scrolling: target %u Hz, work average %u us",
+                     (1000000u+period/2)/period,cp_scroll.draw_us);
+               prof_log_line(cp_line);
+            }
          }
 #endif
          prev_underruns = audio_underruns;

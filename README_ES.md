@@ -12,14 +12,14 @@ Esta rama añade compatibilidad con **Unbound ES v1.08, v1.08 sinza y ES 2.1.1.1
 - También se admiten `unbound-es-v1.08-sinza.gba` (`117449bd7822fad0db293a4f7e364787e4f8543a`)
   y `Pokémon Unbound v2.1.1.1.gba` (`1104054a3061b35b85b04757fbca5a3686cca60c`).
 - Solo se aceptan estos SHA-1; cambiar el nombre del archivo no añade compatibilidad.
-- El usuario confirmó las tres ROM en consola. También confirmó la corrección del diseño del equipo. El nuevo indicador de avance rápido necesita una prueba en 3DS.
+- El usuario confirmó las tres ROM en consola. También confirmó la corrección del diseño del equipo. El indicador de avance rápido también está confirmado. El desplazamiento adaptativo de la mochila necesita una prueba en 3DS.
 
 No se incluye ningún ROM ni archivo de guardado.
 
 ## Idioma e instalación
 
 Instala el CIA de prueba con FBI o abre el 3DSX mediante Homebrew Launcher.
-La versión interna del CIA es 0.0.9 y conserva el Title ID anterior.
+La versión interna del CIA es 0.0.10 y conserva el Title ID anterior.
 Haz una copia de seguridad de tu partida antes de probarlo.
 
 Abre **MENU → Display → Interface language → Español**. Para volver a inglés,
@@ -52,3 +52,11 @@ pasa a 2x y las velocidades guardadas 2x/3x/4x conservan su significado.
 Mientras está activo aparece un pequeño `>> 2x/3x/4x` en la esquina superior
 derecha de la pantalla de juego. Indica la velocidad seleccionada;
 la velocidad real depende del juego y de la consola. Funcionan Mantener y Alternar.
+
+## Desplazamiento de la mochila
+
+Al arrastrar la lista se intentan 24–30 actualizaciones por segundo, separadas
+del sondeo lento de la RAM. Se reutilizan los elementos y su orden mientras
+no cambien. Si el dibujo cuesta demasiado, la frecuencia baja para limitar
+el impacto en el juego; una mochila inmóvil no se redibuja continuamente.
+El objetivo no garantiza el mismo rendimiento en todas las consolas.

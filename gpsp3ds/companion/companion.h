@@ -13,12 +13,14 @@ void companion_cache_directory(const char *directory);
 const char *companion_cache_status(void);
 bool companion_supported(void);
 const char *companion_error(void);
-// At most 5 Hz; work > 3 ms lowers the rate. No catch-up updates.
+// RAM snapshots: at most 5 Hz; work > 3 ms lowers polling, not input refresh.
 bool companion_update(uint64_t now_us);
 void companion_draw(uint16_t *rgb565);
 // Touch phases: 0 down, 1 held, 2 release. Return true for native MENU.
 bool companion_touch(int phase,int x,int y);
 void companion_invalidate(void);
+// Unpainted Bag input is scheduled independently of idle-time RAM polling.
+bool companion_bag_interaction_pending(void);
 unsigned companion_interval_ms(void);
 void companion_feedback(unsigned elapsed_us);
 size_t companion_memory(void);
