@@ -1,3 +1,8 @@
+#ifdef CP_ENABLED
+#include "../companion/localization.h"
+#else
+#define ud_tr(s) (s)
+#endif
 #include "ui.h"
 #include <string.h>
 
@@ -203,6 +208,7 @@ const ui_glyph *ui_glyph_of(const ui_font *f, unsigned c)
 
 int ui_text_w(const ui_font *f, const char *s)
 {
+   s = ud_tr(s);
    int w = 0;
    while (*s)
       w += ui_glyph_of(f, ui_utf8_next(&s))->adv;
@@ -224,6 +230,7 @@ static void draw_glyph(const ui_font *f, const ui_glyph *g, int x, int y, uint16
 
 int ui_text(const ui_font *f, int x, int y, const char *s, uint16_t c, int max_w)
 {
+   s = ud_tr(s);
    int dots = 0, x0 = x;
    if (max_w > 0 && ui_text_w(f, s) > max_w)
       dots = ui_text_w(f, "...");

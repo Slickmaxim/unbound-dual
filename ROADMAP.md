@@ -191,3 +191,5 @@ Sonic Advance 1 and 2, Ace Combat Advance, Asterix, Downhill Jam, Pokémon Emera
 - 🧪 slickmaxim: fix Actions missing stb_image header after Icon Maker removal; preserve header and license in gpsp3ds/third_party; trust the mounted checkout inside the build container.
 
 - 🧪 slickmaxim: rename companion to Unbound Dual in docs, banners, HOME Menu metadata, artifact names and releases; CIA 0.0.5 retains Title ID and existing save/config paths.
+
+- 🧪 slickmaxim: exact-hash ES v1.08 support with relocated tables/Z-A forms/stones; independent English/Español interface catalogue, accented fonts, Spanish ROM font validation and optional real-ROM integration check. Hardware Spanish-save validation pending.

@@ -1,3 +1,4 @@
+#include "../localization.h"
 // BAG: one pocket at a time in the game's own pocket order, its items in a
 // list a drag scrolls, and the tapped item's description - in each game's bag
 // colours (FireRedBag / EmeraldBag in the app's ItemsScreen.kt).
@@ -222,10 +223,10 @@ static void list(struct pd_ui* ui, struct pd_canvas* c, const struct pd_bag_pale
         const char* name = row->name;
         char fallback[16];
         if (!*name) {
-            snprintf(fallback, sizeof(fallback), "ITEM %d", it->id);
+            snprintf(fallback, sizeof(fallback), ud_tr("ITEM %d"), it->id);
             name = fallback;
         }
-        pd_text_fit(c, ix + 14, pd_text_y(ry, BAG_ROW), iw - 64, name, p->text, p->textShadow);
+        pd_text_fit_raw(c, ix + 14, pd_text_y(ry, BAG_ROW), iw - 64, name, p->text, p->textShadow);
         if (row->quantity) {
             char qty[12];
             snprintf(qty, sizeof(qty), "× %d", it->quantity);

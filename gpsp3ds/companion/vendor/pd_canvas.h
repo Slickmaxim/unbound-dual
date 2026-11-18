@@ -61,6 +61,8 @@ int pd_text_narrow_shifted(struct pd_canvas* c, int x, int y, const char* utf8, 
 int pd_text_width(const char* utf8);
 // Like pd_text, cut with "..." to fit max_w.
 int pd_text_fit(struct pd_canvas* c, int x, int y, int max_w, const char* utf8, uint32_t color, uint32_t shadow);
+// Game names/nicknames must not be treated as interface translation keys.
+int pd_text_fit_raw(struct pd_canvas*, int x, int y, int max_w, const char*, uint32_t color, uint32_t shadow);
 // Right-aligned at right.
 void pd_text_right(struct pd_canvas* c, int right, int y, const char* utf8, uint32_t color, uint32_t shadow);
 // Word-wrapped into max_w, lineH apart, at most maxLines (the last cut with

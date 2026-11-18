@@ -19,7 +19,8 @@
   <a href="#the-bottom-screen">Features</a> ·
   <a href="#saves-and-settings">Saves &amp; settings</a> ·
   <a href="#building">Build</a> ·
-  <a href="README_COMPANION_UK.md">Українською</a>
+  <a href="README_COMPANION_UK.md">Українською</a> ·
+  <a href="README_ES.md">Español</a>
 </p>
 
 ---
@@ -35,7 +36,7 @@
 
 ## The bottom screen
 
-A companion for **Pokémon Unbound 2.1.1.1 English**, designed for Nintendo 3DS, including Old 3DS in 2D. The game runs through gpSP's ARM11 JIT; the companion reads game data to display useful information while you play.
+A companion for **Pokémon Unbound 2.1.1.1 English and ES v1.08**, designed for Nintendo 3DS, including Old 3DS in 2D. The game runs through gpSP's ARM11 JIT; the companion reads game data to display useful information while you play.
 
 | Tab | What you can see |
 | --- | --- |
@@ -51,9 +52,11 @@ The app uses **one HOME Menu CIA**. Choose your ROM once; later launches open it
 
 > **Experimental build:** hardware behavior and performance depend on the console, game scene and settings. Trainer-card badges are currently unavailable. The banner uses the same game and companion captures shown above.
 
+> **Spanish preview:** this branch adds ES v1.08 ROM support and an English / Español interface switch. Hardware validation is pending. See [Spanish testing notes](docs/SPANISH_SUPPORT_UK.md).
+
 ## Installation
 
-You need a homebrew-enabled Nintendo 3DS and your own **Pokémon Unbound 2.1.1.1 English** ROM.
+You need a homebrew-enabled Nintendo 3DS and your own **Pokémon Unbound 2.1.1.1 English or the supported ES v1.08** ROM.
 
 1. Install `unbound-dual.cia` using FBI. For Homebrew Launcher, copy `unbound-dual.3dsx` to your SD card instead.
 2. Open **Unbound Dual** and select your ROM on the first launch.
@@ -68,9 +71,9 @@ To choose a different ROM, open **MENU → System → Unbound ROM**. A missing o
 | Item | Value |
 | --- | --- |
 | Supported game | Pokémon Unbound 2.1.1.1, English |
-| ROM SHA-1 | `b4776b82a4c7915d0fadeaa27e013523f99dfd94` |
+| English ROM SHA-1 | `b4776b82a4c7915d0fadeaa27e013523f99dfd94` |
 | Application Title ID | `000400000BAC8200` |
-| Companion CIA version | `0.0.5` |
+| Companion CIA version | `0.0.6` (ES test) |
 | Base emulator | gpSP 3D v0.1.7 |
 
 ROMs, Nintendo's BIOS and saves are not included. The open source BIOS replacement inherited from gpSP is supplied with its source under `bios/`.
@@ -83,6 +86,7 @@ ROMs, Nintendo's BIOS and saves are not included. The open source BIOS replaceme
 
 | Setting | Where to find it |
 | --- | --- |
+| Interface language | **MENU → Display → Interface language** |
 | Companion theme | **MENU → Display → Companion theme** |
 | Bottom artwork filtering | **MENU → Display → Companion filtering** |
 | Game scaling | **MENU → Display → Scaling** |
@@ -147,3 +151,5 @@ This community fork is maintained by **slickmaxim**. Thanks to **bheppe and the 
 The combined application is distributed under **GNU GPL version 3**, with PokeDaisy's attribution requirement. Read [LICENSE](LICENSE), [NOTICE](NOTICE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Individual components retain their original licenses, including gpSP's GPL notices, mGBA GPU code under MPL-2.0 and Inter under OFL-1.1.
 
 This is an unofficial fan project, unaffiliated with the original projects, Nintendo, Game Freak or The Pokémon Company. Pokémon names and artwork belong to their respective owners. No game ROMs, extracted game art, saves or crash dumps are included in this repository.
+
+Spanish ES v1.08 SHA-1: `d5b312465c0a95bcb6428bd61cc170994a2a65fc`. Other Spanish builds are not yet supported.

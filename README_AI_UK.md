@@ -12,3 +12,5 @@ Crash dump не публікувати. Нова splash-збірка Luma з н�
 порівнянням на консолі. Не називати це доведеним дефектом.
 
 Based on PokeDaisy by Lidor Itzhari - https://github.com/lidor30/pokedaisy
+
+Гілка feature/spanish-v108: ES v1.08 + перемикач інтерфейсу English/Español. Дивись docs/SPANISH_SUPPORT_UK.md. Не вмикати інші ES ROM лише за схожістю: таблиці активних форм/предметів перенесені. Тестовий CIA 0.0.6; реліз не публікувати до перевірки save на консолі.

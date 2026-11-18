@@ -11,7 +11,7 @@ def verify(path,title_id,label,shortcut):
  tm=om+SIG[struct.unpack_from('>I',d,om)[0]];tk=ot+SIG[struct.unpack_from('>I',d,ot)[0]]
  info=tm+0xC4;chunks=info+0x900;count=struct.unpack_from('>H',d,info+2)[0]
  assert count==1
- assert struct.unpack_from('>H',d,tm+0x9C)[0]==5, "CIA version must be 0.0.5"
+ assert struct.unpack_from('>H',d,tm+0x9C)[0]==6, "CIA version must be 0.0.6"
  size=struct.unpack_from('>Q',d,chunks+8)[0];ncch=d[oc:oc+size]
  assert sha(ncch)==d[chunks+16:chunks+48]
  assert sha(d[chunks:chunks+count*48])==d[info+4:info+36]

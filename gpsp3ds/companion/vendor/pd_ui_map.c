@@ -46,10 +46,13 @@ static int placeCount;
 static unsigned placesRom;
 
 static bool starts_route(const char* n) {
-    return !strncasecmp(n, "route ", 6);
+    return !strncasecmp(n, "route ", 6) || !strncasecmp(n, "ruta ", 5);
 }
 
 static bool is_town(const char* n) {
+    static const char* const ES[] = {"pueblo ","ciudad ","villa ","isla ","meseta "};
+    for (unsigned i=0;i<sizeof(ES)/sizeof(ES[0]);i++)
+        if (!strncasecmp(n,ES[i],strlen(ES[i]))) return true;
     const char* last = strrchr(n, ' ');
     last = last ? last + 1 : n;
     static const char* const WORDS[] = { "town", "city", "village", "island", "plateau" };
@@ -62,7 +65,7 @@ static bool is_town(const char* n) {
 static int cmp_place(const void* a, const void* b) {
     const struct place *x = a, *y = b;
     if (starts_route(x->name) && starts_route(y->name)) {
-        int nx = atoi(x->name + 6), ny = atoi(y->name + 6);
+        int nx = atoi(strchr(x->name, ' ') + 1), ny = atoi(strchr(y->name, ' ') + 1);
         if (nx != ny) return nx - ny;
     }
     return strcasecmp(x->name, y->name);
@@ -174,7 +177,7 @@ static int label(struct pd_canvas* c, const struct pd_game* g, const char* name,
         if (h < 14) h = 14;
         if (!name || !*name) return h;
         pd_fill(c, view.x, view.y, w, h, PD_GB_PAPER);
-        pd_text_fit(c, view.x + 3, view.y + (h - 14) / 2, w - 5, name, PD_GB_INK, PD_NO_SHADOW);
+        pd_text_fit_raw(c, view.x + 3, view.y + (h - 14) / 2, w - 5, name, PD_GB_INK, PD_NO_SHADOW);
         return h;
     }
     if (g->kind == PD_GAME_EMERALD) {
@@ -183,7 +186,7 @@ static int label(struct pd_canvas* c, const struct pd_game* g, const char* name,
         int x = view.x + view.w - 2 - w, y = view.y + view.h - 2 - h;
         int f = pd_list_box(c, x, y, w, h);
         pd_fill(c, x + f, y + f, w - 2 * f, h - 2 * f, 0xFFFFFF);
-        pd_text_fit(c, x + 7, pd_text_y(y, h), w - 10, name, PD_TITLE_TEXT, PD_TITLE_SHADOW);
+        pd_text_fit_raw(c, x + 7, pd_text_y(y, h), w - 10, name, PD_TITLE_TEXT, PD_TITLE_SHADOW);
         return 0;
     }
     // FireRed: a strip top-left per line, hidden when blank.
@@ -325,7 +328,7 @@ void ui_fly_overlay(struct pd_ui* ui, struct pd_canvas* c) {
         int ry = iy + i * PLACE_ROW - ui->placesScroll;
         if (ry >= iy + ih) break;
         if (ui->pressedId == HIT_FLY_TOWN + i) pd_fill(c, ix, ry, iw, PLACE_ROW, PD_ROW_SELECTED);
-        pd_text_fit(c, ix + 14, pd_text_y(ry, PLACE_ROW), iw - 28, ui->flyNames[i], PD_LABEL, PD_LABEL_SHADOW);
+        pd_text_fit_raw(c, ix + 14, pd_text_y(ry, PLACE_ROW), iw - 28, ui->flyNames[i], PD_LABEL, PD_LABEL_SHADOW);
         int top = ry < iy ? iy : ry;
         int bottom = ry + PLACE_ROW > iy + ih ? iy + ih : ry + PLACE_ROW;
         ui_add_scroll_hit(ui, ix, top, iw, bottom - top, HIT_FLY_TOWN + i);
@@ -361,7 +364,7 @@ void ui_places_overlay(struct pd_ui* ui, struct pd_canvas* c, const struct pd_ga
             continue;
         }
         if (ui->pressedId == HIT_PLACE + i) pd_fill(c, ix, ry, iw, PLACE_ROW, PD_ROW_SELECTED);
-        pd_text_fit(c, ix + 14, ty, iw - 100, places[i].name, PD_LABEL, PD_LABEL_SHADOW);
+        pd_text_fit_raw(c, ix + 14, ty, iw - 100, places[i].name, PD_LABEL, PD_LABEL_SHADOW);
         int page;
         struct pd_tile_rect r;
         if (pd_map_tiles(g, places[i].mapsec, &page, &r, 1) && page > 0) {

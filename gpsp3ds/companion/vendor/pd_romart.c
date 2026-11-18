@@ -179,6 +179,23 @@ void pd_romart_scan(const struct pd_game* g) {
     cp_progress("Finding graphics",0,0);
     find_blobs(g, sigs, n, decoded);
     for (int i = 0; i < n; i++) found[wanted[i]] = decoded[i];
+    if (!strcmp(g->sha1, "d5b312465c0a95bcb6428bd61cc170994a2a65fc")) {
+        // ES v1.08 redraws the Latin normal font. Read it from this exact ROM,
+        // validating the translated bytes instead of expecting English CRCs.
+        const struct { enum pd_blob id; uint32_t offset, crc; } local[] = {
+            {PD_FR_FONT_NORMAL, 0x081F3100, 0xF95367FD},
+            {PD_FR_FONT_NORMAL_WIDTHS, 0x081FB100, 0x51A98C02}
+        };
+        for (unsigned i=0;i<sizeof(local)/sizeof(local[0]);i++) {
+            enum pd_blob id=local[i].id;
+            if (found[id]) continue;
+            size_t size=pd_blob_sigs[id].size;
+            uint8_t* bytes=malloc(size);
+            if (bytes && pd_rom_read(g,local[i].offset,bytes,size) && pd_crc32(bytes,size)==local[i].crc)
+                found[id]=bytes;
+            else free(bytes);
+        }
+    }
 }
 
 const uint8_t* pd_romart_blob(const struct pd_game* g, enum pd_blob b) {

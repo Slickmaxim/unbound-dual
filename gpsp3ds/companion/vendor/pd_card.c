@@ -1,4 +1,5 @@
 #include "pd_card.h"
+#include "../localization.h"
 
 #include <stdio.h>
 #include <math.h>
@@ -453,9 +454,22 @@ static void cat(struct str* s, const struct str* t) {
 
 // ASCII (and é / ¥) in the games' character encoding (enc).
 static struct str enc(const char* text) {
+    text = ud_tr(text);
     struct str s = { 0 };
     for (const unsigned char* p = (const unsigned char*) text; *p; p++) {
         int ch = *p;
+        if (ch == 0xC3 && p[1]) {
+            int code=-1;
+            switch(p[1]) {
+            case 0x81:code=0x02;break; case 0x89:code=0x06;break;
+            case 0x8D:code=0x5A;break; case 0x93:code=0x0E;break;
+            case 0x9A:code=0x13;break; case 0x91:code=0x15;break;
+            case 0xA1:code=0x18;break; case 0xAD:code=0x6F;break;
+            case 0xB3:code=0x22;break; case 0xBA:code=0x27;break;
+            case 0xB1:code=0x29;break; case 0xBC:code=0xF6;break;
+            }
+            if(code>=0){add(&s,code);p++;continue;}
+        }
         if (ch == 0xC3 && p[1] == 0xA9) { // é
             add(&s, 0x1B);
             p++;

@@ -1,4 +1,5 @@
 #include "pd_tables.h"
+#include "../localization.h"
 #include "pd_randomized.h"
 
 #include "pd_game.h"
@@ -71,9 +72,9 @@ const char* pd_move_name(const struct pd_game* g, int move, char* buf, size_t le
 const char* pd_type_name(const struct pd_game* g, int type) {
     const struct pd_text* t = hack_text(g);
     if (t && t->typeNames) {
-        return type >= 0 && type < t->typeNamesCount && t->typeNames[type] ? t->typeNames[type] : "";
+        return type >= 0 && type < t->typeNamesCount && t->typeNames[type] ? ud_tr(t->typeNames[type]) : "";
     }
-    if (type >= 0 && type < pd_type_names_count && pd_type_names[type]) return pd_type_names[type];
+    if (type >= 0 && type < pd_type_names_count && pd_type_names[type]) return ud_tr(pd_type_names[type]);
     return "";
 }
 

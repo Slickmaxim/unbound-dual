@@ -1,3 +1,8 @@
+#ifdef CP_ENABLED
+#include "../companion/localization.h"
+#else
+#define ud_tr(s) (s)
+#endif
 #include "ui_screens.h"
 #include <stdio.h>
 #include <string.h>
@@ -333,7 +338,7 @@ void scr_hud(const ui_hud *h)
    }
    if (h->skipped >= 0.5f)
    {
-      snprintf(buf, sizeof(buf), "skipped %.0f/s (%.0f%%)", h->skipped,
+      snprintf(buf, sizeof(buf), ud_tr("skipped %.0f/s (%.0f%%)"), h->skipped,
                h->fps > 0 ? h->skipped * 100.0f / h->fps : 0.0f);
       ui_text(&ui_font_small, 20, 88, buf, C_WARN, 130);
    }
@@ -346,7 +351,7 @@ void scr_hud(const ui_hud *h)
    {
       ui_rrect(176, 52, 34, 18, 9, C_ACCENT2);
       ui_text_center(&ui_font_bold, 193, 52, "3D", C_TEXT);
-      snprintf(buf, sizeof(buf), "depth %d%%", h->depth_pct);
+      snprintf(buf, sizeof(buf), ud_tr("depth %d%%"), h->depth_pct);
       ui_text(&ui_font_body, 218, 53, buf, C_TEXT, 90);
       ui_text(&ui_font_small, 176, 84, "Use the 3D slider", C_DIM, 130);
    }

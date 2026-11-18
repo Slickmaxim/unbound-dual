@@ -1,3 +1,8 @@
+#ifdef CP_ENABLED
+#include "../companion/localization.h"
+#else
+#define ud_tr(s) (s)
+#endif
 /*
  * gpSP 3D - standalone gpSP frontend for Nintendo 3DS
  *
@@ -499,6 +504,7 @@ static void config_load(void)
 #ifdef CP_ENABLED
       else if (!strcmp(line, "companion_dark")) opt_cp_dark=atoi(eq)!=0;
       else if (!strcmp(line, "companion_filter")) opt_cp_smooth=atoi(eq)!=0;
+      else if (!strcmp(line, "interface_language")) ud_language_set(!strcmp(eq,"es"));
       else if (!strcmp(line, "companion_rom")) snprintf(opt_cp_rom,sizeof(opt_cp_rom),"%s",eq);
 #endif
       else if (!strcmp(line, "scaling"))
@@ -544,6 +550,7 @@ static void config_save(void)
          opt_slot, opt_smooth, opt_audio_stretch, opt_lowprio, opt_sat, opt_bright, opt_gapfill, opt_crt,
          opt_ff_toggle, opt_ff_speed, opt_overlay, opt_update, opt_rtc, opt_rtc_days, opt_rtc_hours, opt_intro, opt_bottom);
 #ifdef CP_ENABLED
+   fprintf(f,"interface_language=%s\n",ud_language_get()?"es":"en");
    fprintf(f,"companion_dark=%d\ncompanion_filter=%d\ncompanion_rom=%s\n",opt_cp_dark,opt_cp_smooth,opt_cp_rom);
 #endif
    /* no menu entries for these: written even when empty so they can be found */
@@ -2039,8 +2046,8 @@ static char companion_rom_path[700];
 static bool companion_attempted;
 static void companion_progress(const char*stage,unsigned percent,void*ctx){
    (void)ctx;char text[96];
-   if(percent<=100)snprintf(text,sizeof(text),"%s: %u%%",stage,percent);
-   else snprintf(text,sizeof(text),"%s...",stage);
+   if(percent<=100)snprintf(text,sizeof(text),"%s: %u%%",ud_tr(stage),percent);
+   else snprintf(text,sizeof(text),"%s...",ud_tr(stage));
    scr_message("Preparing Unbound data",text,"ROM and cache status are shown below.");ui_present();
 }
 static void companion_prepare(void) {
@@ -2851,7 +2858,7 @@ enum {
    /* Game */
    M_RESUME, M_SLOT, M_SAVE, M_LOAD, M_RESET, M_GUIDE, M_LIST, M_QUIT,
    /* Display */
-   M_CP_DARK, M_CP_FILTER, M_CP_ROM, M_SIZE, M_SMOOTH, M_CRT, M_OVERLAY, M_CSTYLE, M_SAT, M_BRIGHT, M_COLRESET,
+   M_CP_DARK, M_CP_FILTER, M_CP_LANGUAGE, M_CP_ROM, M_SIZE, M_SMOOTH, M_CRT, M_OVERLAY, M_CSTYLE, M_SAT, M_BRIGHT, M_COLRESET,
    /* 3D */
    M_3D, M_3DPCT, M_3DMETHOD, M_3DSMART, M_3DSTYLE, M_L0, M_L1, M_L2, M_L3, M_SPRITE, M_FOCUS, M_TILT, M_GAPFILL, M_PERGAME, M_3DRESET,
    /* Speed */
@@ -2879,8 +2886,8 @@ static void mrow_add(int id, int kind, const char *label, const char *help)
    memset(m, 0, sizeof(*m));
    m->id = id;
    m->r.kind = kind;
-   m->r.label = label;
-   m->help = help;
+   m->r.label = ud_tr(label);
+   m->help = ud_tr(help);
 }
 
 static void mrow_slider(int id, const char *label, int v, int lo, int hi, const char *fmt, const char *help)
@@ -2888,7 +2895,7 @@ static void mrow_slider(int id, const char *label, int v, int lo, int hi, const 
    mrow *m = &mrows[mrow_n];
    mrow_add(id, ROW_SLIDER, label, help);
    m->r.v = v; m->r.vmin = lo; m->r.vmax = hi;
-   snprintf(m->vbuf, sizeof(m->vbuf), fmt, v);
+   snprintf(m->vbuf, sizeof(m->vbuf), ud_tr(fmt), v);
    m->r.value = m->vbuf;
 }
 
@@ -2896,7 +2903,7 @@ static void mrow_choice(int id, const char *label, const char *val, const char *
 {
    mrow *m = &mrows[mrow_n];
    mrow_add(id, ROW_CHOICE, label, help);
-   snprintf(m->vbuf, sizeof(m->vbuf), "%s", val);
+   snprintf(m->vbuf, sizeof(m->vbuf), "%s", ud_tr(val));
    m->r.value = m->vbuf;
 }
 
@@ -2940,7 +2947,7 @@ static void menu_build(int tab)
          mrows[mrow_n - 1].r.danger = 1;
          {
             static char sv[24];
-            snprintf(sv, sizeof(sv), "slot %d", opt_slot);
+            snprintf(sv, sizeof(sv), ud_tr("slot %d"), opt_slot);
             mrows[2].r.value = sv;
             mrows[3].r.value = sv;
          }
@@ -2948,6 +2955,7 @@ static void menu_build(int tab)
       }
       case 1:
 #ifdef CP_ENABLED
+         mrow_choice(M_CP_LANGUAGE,"Interface language",ud_language_get()?"Español":"English","English / Español. Applies to menus and\ncompanion tabs; the game keeps its language.");
          mrow_choice(M_CP_DARK,"Companion theme",opt_cp_dark?"Dark":"Light","PokeDaisy interface colours.\nGame sprites keep their original colours.");
          mrow_choice(M_CP_FILTER,"Companion filtering",opt_cp_smooth?"Smooth":"Nearest","Scaling for the bottom screen's art.\nNearest keeps pixels free of blending.");
 #endif
@@ -2977,7 +2985,7 @@ static void menu_build(int tab)
             if (!opt_overlay)
                snprintf(ov_help, sizeof(ov_help), "A 400x240 PNG drawn over the game (e.g. a\nbezel): sdmc:/3ds/gpsp3d/overlay.png");
             else if (gpu_ov_have)
-               snprintf(ov_help, sizeof(ov_help), "Showing %.70s", gpu_ov_from + 5);
+               snprintf(ov_help, sizeof(ov_help), ud_tr("Showing %.70s"), gpu_ov_from + 5);
             else
                snprintf(ov_help, sizeof(ov_help), "No picture found. Put a 400x240 PNG in\nsdmc:/3ds/gpsp3d/overlay.png");
             if (!GPU_ACTIVE)
@@ -2985,9 +2993,9 @@ static void menu_build(int tab)
             mrow_choice(M_OVERLAY, "Overlay", opt_overlay ? "On" : "Off", ov_help);
          }
          mrow_choice(M_CSTYLE, "Color style", cc_names[opt_colorcorr], "Original: colours as the game made them.\nGBA soft / GBA screen: like the old GBA LCD.");
-         mrow_slider(M_SAT, "Saturation", opt_sat, 50, 150, "%d%%", "More or less colourful.\n100% = as the game drew it.");
+         mrow_slider(M_SAT, "Saturation", opt_sat, 50, 150, "%d%%", ud_tr("More or less colourful.\n100% = as the game drew it."));
          mrow_slider(M_BRIGHT, "Brightness", opt_bright, 70, 130, "%d%%", "Lifts or darkens the mid-tones;\nblack and white stay as they are.");
-         mrow_add(M_COLRESET, ROW_ACTION, "Reset colours", "Original style, 100% saturation and\nbrightness.");
+         mrow_add(M_COLRESET, ROW_ACTION, "Reset colours", ud_tr("Original style, 100% saturation and\nbrightness."));
          break;
       case 2:
       {
@@ -2999,7 +3007,7 @@ static void menu_build(int tab)
                "Needs System > Draw on core 2 On.");
          if (!has_3d_screen)
             mrows[mrow_n - 1].r.disabled = 1;
-         mrow_slider(M_3DPCT, "Strength", d3.pct, 0, 200, "%d%%", "How far the layers separate, on top of\nthe 3D slider. 100% = normal.");
+         mrow_slider(M_3DPCT, "Strength", d3.pct, 0, 200, "%d%%", ud_tr("How far the layers separate, on top of\nthe 3D slider. 100% = normal."));
          mrow_choice(M_3DMETHOD, "Method", d3.fast ? "Experimental" : "Normal", d3.fast ?
                "Experimental: draw once, move each layer's\npixels. Usually slower on a 3DS." :
                "Normal: draw each eye separately.\nRecommended.");
@@ -3022,7 +3030,7 @@ static void menu_build(int tab)
          mrow_toggle(M_GAPFILL, "Fill gaps", opt_gapfill, "Hide thin seams where two layers slide\napart (pink/black lines, e.g. Pokemon).");
          mrow_choice(M_PERGAME, "Settings for", d3_pergame ? "This game" : "All games",
                "This game: keep these 3D settings just\nfor this game (saved per game).");
-         mrow_add(M_3DRESET, ROW_ACTION, "Reset 3D", "Back to Classic at 100%, no sprite pop\nor focus.");
+         mrow_add(M_3DRESET, ROW_ACTION, "Reset 3D", ud_tr("Back to Classic at 100%, no sprite pop\nor focus."));
          {
             int i;
             for (i = 1; i < mrow_n; i++)
@@ -3037,7 +3045,7 @@ static void menu_build(int tab)
          {
             static const char *speeds[4] = { "Max", "2x", "3x", "4x" };
             static char ffh[96];
-            snprintf(ffh, sizeof(ffh), "Hold: fast while the button is held.\nToggle: it turns it on/off. Button: %s", keys_ff_names());
+            snprintf(ffh, sizeof(ffh), ud_tr("Hold: fast while the button is held.\nToggle: it turns it on/off. Button: %s"), keys_ff_names());
             mrow_choice(M_FFMODE, "Fast forward", opt_ff_toggle ? "Toggle" : "Hold", ffh);
             mrow_choice(M_FFSPEED, "Fast forward speed", speeds[opt_ff_speed],
                         "Max: as fast as the 3DS can go (light\ngames: 2-4x on Old 3DS, more on New).");
@@ -3085,7 +3093,7 @@ static void menu_build(int tab)
                char when[40] = "";
                if (tm)
                   strftime(when, sizeof(when), "%a %b %d %Y, %I:%M %p", tm);
-               snprintf(clock_help, sizeof(clock_help), "Game clock: %s\n(if the 3DS clock is wrong, set it right here)", when);
+               snprintf(clock_help, sizeof(clock_help), ud_tr("Game clock: %s\n(if the 3DS clock is wrong, set it right here)"), when);
             }
             mrow_slider(M_RTCDAYS, "Clock adjust: days", opt_rtc_days, -365, 365, "%+d", clock_help);
             mrow_slider(M_RTCHOURS, "Clock adjust: hours", opt_rtc_hours, -23, 23, "%+d", clock_help);
@@ -3110,10 +3118,10 @@ static void menu_build(int tab)
                   st == UPD_FAILED  ? "" :
                                       "Checks when gpSP 3D starts (needs Wi-Fi).");
                if (opt_update && st == UPD_FAILED)
-                  snprintf(upd_help, sizeof(upd_help), "Couldn't reach GitHub (%s:\n%.50s). Off/On retries.",
+                  snprintf(upd_help, sizeof(upd_help), ud_tr("Couldn't reach GitHub (%s:\n%.50s). Off/On retries."),
                            update_method(), update_error());
                if (opt_update && st == UPD_NEWER)
-                  snprintf(upd_help, sizeof(upd_help), "Version %s is out. Update it in\nUniversal-Updater (or FBI, see GitHub).", update_latest());
+                  snprintf(upd_help, sizeof(upd_help), ud_tr("Version %s is out. Update it in\nUniversal-Updater (or FBI, see GitHub)."), update_latest());
                mrow_choice(M_UPDATE, "Check for updates", opt_update ? "On" : "Off", upd_help);
             }
          }
@@ -3136,7 +3144,7 @@ static void menu_build(int tab)
          else
             snprintf(about, sizeof(about), FRONTEND_NAME
 #ifdef CP_ENABLED
-                     " v0.1.1"
+                     " v0.2.0 ES test"
 #else
                      " " GPSP3D_VERSION
 #endif
@@ -3207,6 +3215,7 @@ static const char *menu_change(int id, int dir, bool has_value, int value)
                        if (opt_overlay && !gpu_ov_have) return "No overlay.png in sdmc:/3ds/gpsp3d/";
                        break;
 #ifdef CP_ENABLED
+      case M_CP_LANGUAGE: ud_language_set(!ud_language_get());companion_invalidate();break;
       case M_CP_DARK: opt_cp_dark^=1;companion_options(opt_cp_dark,opt_cp_smooth);break;
       case M_CP_FILTER: opt_cp_smooth^=1;companion_options(opt_cp_dark,opt_cp_smooth);break;
 #endif
@@ -3550,10 +3559,10 @@ static bool game_menu(void)
                   goto resume;
                case M_SAVE:
                   if (state_save())
-                     snprintf(note, sizeof(note), "Saved to slot %d", opt_slot);
+                     snprintf(note, sizeof(note), ud_tr("Saved to slot %d"), opt_slot);
                   else
                   {
-                     snprintf(note, sizeof(note), "Could not save to slot %d", opt_slot);
+                     snprintf(note, sizeof(note), ud_tr("Could not save to slot %d"), opt_slot);
                      note_ok = 0;
                   }
                   break;
@@ -3563,7 +3572,7 @@ static bool game_menu(void)
                      config_save();
                      goto resume;
                   }
-                  snprintf(note, sizeof(note), "Could not load slot %d", opt_slot);
+                  snprintf(note, sizeof(note), ud_tr("Could not load slot %d"), opt_slot);
                   note_ok = 0;
                   break;
                case M_RESET:
@@ -3571,7 +3580,7 @@ static bool game_menu(void)
                   if (confirm_id != r->id)
                   {
                      confirm_id = r->id;
-                     snprintf(note, sizeof(note), "Press A / tap again to %s", r->id == M_RESET ? "reset" : "quit");
+                     snprintf(note, sizeof(note), ud_tr("Press A / tap again to %s"), r->id == M_RESET ? "reset" : "quit");
                      note_ok = 0;
                      break;
                   }
@@ -3614,7 +3623,7 @@ static bool game_menu(void)
                   d3.pct = 100; d3.style = 0; d3.sprite = 0; d3.focus = 0; d3.smart = 1; d3.fast = 0; d3.tilt = 0;
                   d3_set_style(0);
                   preview_later(false);
-                  snprintf(note, sizeof(note), "3D back to Classic, 100%%");
+                  snprintf(note, sizeof(note), ud_tr("3D back to Classic, 100%%"));
                   break;
             }
          }
@@ -4102,29 +4111,29 @@ static void run_game(void)
             if (ff_shown)
             {
                static char ffw[48];
-               snprintf(ffw, sizeof(ffw), ">> Fast forward  %.1fx",
+               snprintf(ffw, sizeof(ffw), ud_tr(">> Fast forward  %.1fx"),
                         frames ? (frames + ff_extra_win) / (double)frames : 1.0);
                h.warning = ffw;
             }
             h.stat_label[0] = "Main core";
-            snprintf(h.stat_value[0], 40, "emulate %.1f ms   show %.1f ms",
+            snprintf(h.stat_value[0], 40, ud_tr("emulate %.1f ms   show %.1f ms"),
                   (t_core - t_blit_acc) / TICKS_PER_MS / frames - c2_wait_us / 1000.0 / frames,
                   (t_blit_acc / TICKS_PER_MS + present_us_acc / 1000.0) / dw);
             h.stat_label[1] = "Waits";
-            snprintf(h.stat_value[1], 40, "%.1f ms for core 2", c2_wait_us / 1000.0 / frames);
+            snprintf(h.stat_value[1], 40, ud_tr("%.1f ms for core 2"), c2_wait_us / 1000.0 / frames);
             h.stat_label[2] = "Core 2";
             if (video_thread_enabled)
-               snprintf(h.stat_value[2], 40, "draw %.1f ms   copy %.1f ms",
+               snprintf(h.stat_value[2], 40, ud_tr("draw %.1f ms   copy %.1f ms"),
                      c2_draw_us / 1000.0 / dw, c2_copy_us / 1000.0 / dw);
             else
                snprintf(h.stat_value[2], 40, "off (drawing on main core)");
             h.stat_label[3] = "Display";
             if (skip_heavy)
-               snprintf(h.stat_value[3], 40, "%s, drawing 1 of %d frames", GPU_ACTIVE ? "GPU" : "CPU", skip_count + 1);
+               snprintf(h.stat_value[3], 40, ud_tr("%s, drawing 1 of %d frames"), GPU_ACTIVE ? "GPU" : "CPU", skip_count + 1);
             else
-               snprintf(h.stat_value[3], 40, "%s, every frame", GPU_ACTIVE ? "GPU" : "CPU copy");
+               snprintf(h.stat_value[3], 40, ud_tr("%s, every frame"), GPU_ACTIVE ? "GPU" : "CPU copy");
             h.stat_label[4] = "Audio";
-            snprintf(h.stat_value[4], 40, "gaps %lu/s   speed %.0f%%",
+            snprintf(h.stat_value[4], 40, ud_tr("gaps %lu/s   speed %.0f%%"),
                   (unsigned long)(audio_underruns - prev_underruns), audio_rate_cur * 100.0 / AUDIO_RATE);
             h.stat_label[5] = "Emulator";
             snprintf(h.stat_value[5], 40, "%.38s", core_msg);
@@ -4136,7 +4145,7 @@ static void run_game(void)
 #ifdef CP_ENABLED
          if (opt_bottom == 3 && sess_frames % 300 < 60) {
             char cp_line[160];
-            snprintf(cp_line, sizeof(cp_line), "Companion: work %lu us, interval %u ms, memory %lu KiB",
+            snprintf(cp_line, sizeof(cp_line), ud_tr("Companion: work %lu us, interval %u ms, memory %lu KiB"),
                   (unsigned long)(cp_work_ticks / (SYSCLOCK_ARM11 / 1000000ULL)),
                   companion_interval_ms(), (unsigned long)(companion_memory() / 1024));
             prof_log_line(cp_line);
@@ -4285,7 +4294,7 @@ int main(int argc, char **argv)
             config_save();
          }
          char body[200];
-         snprintf(body, sizeof(body), "During: %s\n\n%s", froze, closing ? "" :
+         snprintf(body, sizeof(body), ud_tr("During: %s\n\n%s"), froze, closing ? "" :
                 "GPU display is now Off (menu: System >\nGPU display). The CPU shows the frames.");
          ui_wait_message("The 3DS froze last time", body);
       }

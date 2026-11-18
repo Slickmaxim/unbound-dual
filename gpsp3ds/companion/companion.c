@@ -1,3 +1,4 @@
+#include "localization.h"
 #include "companion.h"
 #include "alloc.h"
 #include "cache.h"
@@ -57,8 +58,9 @@ bool companion_load(const uint8_t header[192],size_t size,cp_read_fn read,
     game.rom=header; // presence token; every ROM access uses the adapter
     game.romSize=size;game.romRead=read;game.romAt=span;game.romCtx=ctx;
     pd_game_identify(&game);
-    if(strcmp(game.sha1,"b4776b82a4c7915d0fadeaa27e013523f99dfd94")){
-        error="Requires Unbound 2.1.1.1 English";return false;
+    if(strcmp(game.sha1,"b4776b82a4c7915d0fadeaa27e013523f99dfd94") &&
+       strcmp(game.sha1,"d5b312465c0a95bcb6428bd61cc170994a2a65fc")){
+        error="Requires Unbound 2.1.1.1 EN or ES v1.08";return false;
     }
     if(!game.cfg){error="Unbound layout unavailable";return false;}
     S=cp_calloc(1,sizeof(*S));if(!S){error="Not enough memory for Companion";return false;}
@@ -151,16 +153,16 @@ static void native_draw(void){
         if(u->summarySlot>=0&&u->summarySlot<s->partyCount){
             const struct pd_mon*m=&s->party[u->summarySlot];
             native_text(12,5,m->nickname);
-            snprintf(b,sizeof(b),"Lv %d    HP %d/%d",m->level,m->hp,m->maxHp);native_text(12,29,b);
+            snprintf(b,sizeof(b),ud_tr("Lv %d    HP %d/%d"),m->level,m->hp,m->maxHp);native_text(12,29,b);
             for(int i=0;i<4;++i){snprintf(b,sizeof(b),"%s   PP %d",pd_move_name(&S->game,m->moves[i],name,sizeof(name)),m->pp[i]);native_text(12,54+i*22,b);}
-            snprintf(b,sizeof(b),"Atk %d  Def %d  Spd %d",m->stats.values[1],m->stats.values[2],m->stats.values[3]);native_text(12,148,b);
-            snprintf(b,sizeof(b),"SpA %d  SpD %d",m->stats.values[4],m->stats.values[5]);native_text(12,170,b);
+            snprintf(b,sizeof(b),ud_tr("Atk %d  Def %d  Spd %d"),m->stats.values[1],m->stats.values[2],m->stats.values[3]);native_text(12,148,b);
+            snprintf(b,sizeof(b),ud_tr("SpA %d  SpD %d"),m->stats.values[4],m->stats.values[5]);native_text(12,170,b);
             ui_text(&ui_font_small,245,5,"BACK",UI_RGB(130,180,230),70);ui_add_hit(u,240,0,80,25,HIT_BACK);
         }else for(int i=0;i<s->partyCount&&i<6;++i){
             const struct pd_mon*m=&s->party[i];int y=5+i*33;
             ui_rrect(6,y,308,30,5,UI_RGB(28,34,47));
             ui_text(&ui_font_bold,13,y+1,m->nickname,UI_RGB(230,233,240),170);
-            snprintf(b,sizeof(b),"Lv%d  %d/%d",m->level,m->hp,m->maxHp);
+            snprintf(b,sizeof(b),ud_tr("Lv%d  %d/%d"),m->level,m->hp,m->maxHp);
             ui_text_right(&ui_font_small,305,y+4,b,UI_RGB(150,210,180));
             int w=m->maxHp>0?280*m->hp/m->maxHp:0;
             ui_fill(14,y+24,280,3,UI_RGB(60,65,75));if(w>0)ui_fill(14,y+24,w,3,UI_RGB(90,205,145));
@@ -175,7 +177,7 @@ static void native_draw(void){
         int max=p->count>6?p->count-6:0;if(S->scroll>max)S->scroll=max;
         if (S->detail>=0 && S->detail<p->count) {
             native_text(12,36,pd_item_name(&S->game,p->items[S->detail].id));
-            snprintf(b,sizeof(b),"Quantity: %u",p->items[S->detail].quantity);native_text(12,60,b);
+            snprintf(b,sizeof(b),ud_tr("Quantity: %u"),p->items[S->detail].quantity);native_text(12,60,b);
             native_wrap(pd_item_description(&S->game,p->items[S->detail].id),90);
             ui_text(&ui_font_small,250,191,"BACK",UI_RGB(160,195,235),65);
             ui_add_hit(u,240,186,75,22,9104);
