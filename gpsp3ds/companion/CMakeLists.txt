@@ -54,6 +54,6 @@ if(COMPANION_TESTS)
 endif()
 
 if(COMPANION_TESTS)
- add_executable(companion-scroll-refresh-test test/scroll_refresh_test.c)
- target_compile_options(companion-scroll-refresh-test PRIVATE -UNDEBUG)
+ add_executable(companion-bag-refresh-test test/bag_refresh_test.c)
+ target_compile_options(companion-bag-refresh-test PRIVATE -UNDEBUG)
 endif()

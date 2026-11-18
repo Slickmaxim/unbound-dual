@@ -50,13 +50,13 @@ Choose a **light or dark companion theme**, set bottom-screen artwork to **Neare
 
 Fast forward offers **2x, 3x and 4x**, with a small `>> 2x/3x/4x` indicator in the top-right corner while active. Hold and Toggle modes remain available.
 
-Bag dragging targets **24–30 refreshes per second**, adapts to measured redraw cost and reuses unchanged inventory/sorting. Expensive redraws reduce the rate further to limit emulator overhead; an idle bag does not animate continuously.
+The **Bag tab uses a fixed 30 Hz redraw timer while open**, including scrolling and stationary frames. It does not wait for idle emulator time or reduce the redraw target based on cost. Other tabs keep their existing refresh behavior. Actual delivered FPS and the effect on game speed depend on console workload.
 
 The app uses **one HOME Menu CIA**. Choose your ROM once; later launches open it automatically. Prepared ROM data is cached to speed up subsequent starts.
 
 > **Experimental build:** hardware behavior and performance depend on the console, game scene and settings. Trainer-card badges are currently unavailable. The banner uses the same game and companion captures shown above.
 
-> **Spanish preview:** this branch supports ES v1.08, ES v1.08 sinza and the supplied ES 2.1.1.1 ROM, plus an English / Español interface switch. The user confirmed all three on hardware; including the corrected party artwork. The fast-forward indicator is also confirmed. Adaptive Bag scrolling is the latest change awaiting console testing. See [Spanish testing notes](docs/SPANISH_SUPPORT_UK.md).
+> **Spanish preview:** this branch supports ES v1.08, ES v1.08 sinza and the supplied ES 2.1.1.1 ROM, plus an English / Español interface switch. The user confirmed all three on hardware; including the corrected party artwork. The fast-forward indicator is also confirmed. Fixed-rate Bag presentation is the latest change awaiting console testing. See [Spanish testing notes](docs/SPANISH_SUPPORT_UK.md).
 
 ## Installation
 
@@ -77,7 +77,7 @@ To choose a different ROM, open **MENU → System → Unbound ROM**. A missing o
 | Supported game | Pokémon Unbound 2.1.1.1, English |
 | English ROM SHA-1 | `b4776b82a4c7915d0fadeaa27e013523f99dfd94` |
 | Application Title ID | `000400000BAC8200` |
-| Companion CIA version | `0.0.10` (test 5) |
+| Companion CIA version | `0.0.11` (test 6) |
 | Base emulator | gpSP 3D v0.1.7 |
 
 ROMs, Nintendo's BIOS and saves are not included. The open source BIOS replacement inherited from gpSP is supplied with its source under `bios/`.

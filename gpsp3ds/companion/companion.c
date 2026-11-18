@@ -21,7 +21,6 @@ bool cp_ui_touch(struct pd_ui*,int,int,int);
 void cp_map_reset(void);
 void cp_art_reset(void);
 void cp_party_reset(void);
-void cp_bag_reset(void);
 void cp_card_reset(void);
 int cp_bottom_smooth;
 static bool cp_dark_mode;
@@ -37,7 +36,7 @@ static struct state {
     void *ctx;
     uint64_t next;
     unsigned interval;
-    bool dirty, input_dirty;
+    bool dirty;
 #ifdef COMPANION_NATIVE
     int pocket,scroll,detail,drag_pixels;
 #endif
@@ -48,7 +47,7 @@ static const char*cache_status="not loaded";
 const char*companion_cache_status(void){return cache_status;}
 void companion_close(void){
     supported=false;
-    cp_card_reset();cp_map_reset();cp_party_art_reset();cp_art_reset();cp_party_reset();cp_bag_reset();cp_free_all();S=NULL;
+    cp_card_reset();cp_map_reset();cp_party_art_reset();cp_art_reset();cp_party_reset();cp_free_all();S=NULL;
     error="Companion is not loaded";
 }
 bool companion_load(const uint8_t header[192],size_t size,cp_read_fn read,
@@ -100,7 +99,7 @@ void companion_options(bool dark,bool smooth){
 bool companion_supported(void){return supported;}
 const char*companion_error(void){return error;}
 void companion_invalidate(void){if(S)S->dirty=true;}
-bool companion_bag_interaction_pending(void){return S&&S->input_dirty&&S->ui.tab==PD_TAB_BAG;}
+bool companion_bag_open(void){return supported&&S&&S->ui.tab==PD_TAB_BAG;}
 unsigned companion_interval_ms(void){return S?S->interval:1000;}
 size_t companion_memory(void){return cp_memory_used();}
 void companion_feedback(unsigned us){if(S&&us>3000&&S->interval<1000)S->interval=S->interval<500?500:1000;}
@@ -223,7 +222,7 @@ void companion_draw(uint16_t*out){
     struct pd_canvas c;pd_canvas_init(&c,320,240,S->pixels);cp_ui_draw(&S->ui,&c,&S->game,&S->snap);
     for(int i=0;i<320*240;++i){uint32_t v=S->pixels[i];out[i]=((v>>19)<<11)|(((v>>10)&63)<<5)|((v>>3)&31);}
 #endif
-    S->dirty=S->input_dirty=false;
+    S->dirty=false;
 }
 bool companion_touch(int phase,int x,int y){
     if(!supported)return phase==2&&y>=212&&x>=240;
@@ -249,6 +248,6 @@ bool companion_touch(int phase,int x,int y){
     }
     if(phase==2)S->drag_pixels=0;
 #endif
-    if(phase!=1 || previous_y!=y || previous_id!=S->ui.pressedId)S->dirty=S->input_dirty=true;
+    if(phase!=1 || previous_y!=y || previous_id!=S->ui.pressedId)S->dirty=true;
     return menu;
 }

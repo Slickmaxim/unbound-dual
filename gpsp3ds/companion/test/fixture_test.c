@@ -19,42 +19,6 @@ static void tap_id(int id){
  fprintf(stderr,"missing hit %d\n",id);abort();
 }
 static void image(const char*root,const char*name){char path[1024];snprintf(path,sizeof(path),"%s/%s.ppm",root,name);FILE*f=fopen(path,"wb");assert(f);fprintf(f,"P6\n320 240\n255\n");for(int i=0;i<320*240;++i){uint16_t c=output[i];unsigned char b[3]={(c>>11)*255/31,((c>>5)&63)*255/63,(c&31)*255/31};fwrite(b,1,3,f);}fclose(f);}
-static void check_bag_scrolling(void){
- struct pd_snapshot saved=S->snap;
- memset(S->snap.bag,0,sizeof(S->snap.bag));S->snap.bagOk=true;
- S->snap.bag[PD_POCKET_ITEMS].count=80;
- for(int i=0;i<80;i++)S->snap.bag[PD_POCKET_ITEMS].items[i]=(struct pd_item){i+1,i+1};
- S->ui.bagPocket=0;S->ui.bagSort=0;S->ui.bagSelected=-1;
- companion_draw(output);
- int x=-1,y=-1;
- for(int i=0;i<S->ui.hitCount;i++)if(S->ui.hits[i].id==HIT_BAG_LIST){
-  x=S->ui.hits[i].x+30;y=S->ui.hits[i].y+S->ui.hits[i].h-20;break;
- }
- assert(x>=0&&y>40);
- companion_touch(0,x,y);assert(companion_bag_interaction_pending());
- companion_draw(output);assert(!companion_bag_interaction_pending());
- // A stationary held stylus needs no new frame; a moved stylus must not
- // wait for the slow RAM-snapshot timer before requesting a Bag frame.
- companion_touch(1,x,y);assert(!companion_bag_interaction_pending());
- companion_touch(1,x,y-30);assert(companion_bag_interaction_pending());
- assert(S->ui.bagScroll>0);companion_draw(output);
- companion_touch(2,x,y-30);companion_draw(output);
- assert(!companion_bag_interaction_pending());
- static uint16_t cached[320*240];
- // A reused view and a fresh gather/sort must render identically after
- // scrolling, quantity changes, sort changes and pocket changes.
- for(int scenario=0;scenario<5;scenario++){
-  if(scenario==1)S->snap.bag[PD_POCKET_ITEMS].items[4].quantity=777;
-  if(scenario==2)S->ui.bagSort=2;
-  if(scenario==3)S->ui.bagSort=1;
-  if(scenario==4)S->ui.bagPocket=1;
-  companion_draw(output);memcpy(cached,output,sizeof(cached));
-  cp_bag_reset();companion_draw(output);assert(!memcmp(cached,output,sizeof(cached)));
-  companion_draw(output);assert(!memcmp(cached,output,sizeof(cached)));
- }
- S->snap=saved;S->ui.bagPocket=0;S->ui.bagSort=0;S->ui.bagScroll=0;cp_bag_reset();
- puts("Bag: immediate pending drag, stationary input idle, cached/fresh inventory/sort/pocket pixels PASS");
-}
 int main(int argc,char**argv){assert(argc==3);const char*fixtures[]={"unbound","unbound_battle"};
  for(int f=0;f<2;++f){
   load_bytes(argv[1],fixtures[f],"ewram",ew,sizeof(ew));load_bytes(argv[1],fixtures[f],"iwram",iw,sizeof(iw));memcpy(saved_ew,ew,sizeof(ew));memcpy(saved_iw,iw,sizeof(iw));
@@ -81,12 +45,11 @@ int main(int argc,char**argv){assert(argc==3);const char*fixtures[]={"unbound","
   changed=S->snap;++changed.x;assert(visible_changed(&S->snap,&changed,PD_TAB_MAP));
   tap_id(HIT_SLOT);assert(S->ui.summarySlot==0);companion_draw(output);if(!f)image(argv[2],"summary");
   for(int i=0;i<S->ui.hitCount;++i){int id=S->ui.hits[i].id;assert(id!=HIT_BAG_USE&&id!=HIT_BAG_GIVE&&id!=HIT_SUMMARY_TAKE&&id!=HIT_SUMMARY_PC&&id!=HIT_MAP_FLY&&id!=HIT_MAP_TAKE_OFF);}
-  tap_id(9001);companion_draw(output);if(!f)image(argv[2],"bag");assert(S->ui.tab==PD_TAB_BAG);
-  check_bag_scrolling();
+  tap_id(9001);companion_draw(output);if(!f)image(argv[2],"bag");assert(S->ui.tab==PD_TAB_BAG);assert(companion_bag_open());
 #ifdef COMPANION_NATIVE
   if(S->snap.bag[0].count){tap_id(9200);companion_draw(output);if(!f)image(argv[2],"item");tap_id(9104);companion_draw(output);}
 #endif
-  tap_id(9002);companion_draw(output);if(!f)image(argv[2],"map-no-rom");assert(S->ui.tab==PD_TAB_MAP);
+  tap_id(9002);companion_draw(output);if(!f)image(argv[2],"map-no-rom");assert(S->ui.tab==PD_TAB_MAP);assert(!companion_bag_open());
   tap_id(9003);assert(S->ui.tab==PD_TAB_CARD);companion_draw(output);
   struct pd_card_info card;assert(pd_card_info(&S->game,&S->snap,&card));
   assert(card.style==PD_CARD_UNBOUND);assert(card.trainerId==S->snap.trainerId);

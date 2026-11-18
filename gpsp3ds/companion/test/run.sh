@@ -14,5 +14,5 @@ for style in pokedaisy; do
     "$build/companion-adapter-test" "$build/synthetic-map.gba"
     "$build/companion-filter-test"
     "$build/companion-fast-forward-test"
-    "$build/companion-scroll-refresh-test"
+    "$build/companion-bag-refresh-test"
 done

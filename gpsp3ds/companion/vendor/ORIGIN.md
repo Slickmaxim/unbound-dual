@@ -12,4 +12,4 @@ Spanish follow-up: separate exact-hash profiles for v1.08 sinza and ES 2.1.1.1, 
 
 Spanish party artwork fix: CRC-validated recovery of translated FONT_SMALL/status resources from the user's exact ROM, plus complete-party cache validation and regression checks. No game graphics are bundled.
 
-Bag adaptation: reuse gathered/sorted read-only rows while the inventory/pocket/sort/ROM is unchanged; reset on close. Preserve original painting and touch behavior, with host-side adaptive input scheduling.
+Bag fixed-rate follow-up: adaptive Bag row caching was reverted to the previous vendor renderer. The new 30 Hz timer belongs to the frontend; original Bag drawing is preserved.
