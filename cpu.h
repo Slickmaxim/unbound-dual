@@ -114,6 +114,10 @@ typedef enum
 extern u32 instruction_count;
 
 void execute_arm(u32 cycles);
+/* Bounded interpreter transaction, called only between emulated frames. */
+bool gpsp_guest_begin(void);
+bool gpsp_guest_call(u32 thumb_address, const u32 args[4], u32 *result, bool query);
+void gpsp_guest_end(bool commit);
 /* Interpret mutable VRAM until execution leaves it or a frame completes.
  * Returns the same cycle-count/frame-complete encoding as update_gba(). */
 u32 function_cc execute_arm_vram(u32 cycles);
