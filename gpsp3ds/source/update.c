@@ -205,8 +205,10 @@ static void upd_main(void *arg)
       upd_state = UPD_CHECKING;
 #ifdef HAVE_CURL
       check_curl();
-#else
+#elif !defined(CP_ENABLED)
       check_httpc();
+#else
+      snprintf(upd_error, sizeof(upd_error), "Verified HTTPS requires libcurl.");
 #endif
       if (upd_state == UPD_CHECKING)
          upd_state = UPD_FAILED;
@@ -352,6 +354,79 @@ static bool valid_3dsx(const char *path)
       hdr[6] >= hdr[7] && hdr[4] > 0 &&
       (uint64_t)header + 3u*reloc + hdr[4] + hdr[5] + hdr[6] - hdr[7] <= (uint64_t)size;
 }
+#define UNBOUND_TITLE_ID UINT64_C(0x000400000BAC8200)
+
+static bool install_cia(void)
+{
+   static const char stage[] = "sdmc:/3ds/gpsp3d/unbound-dual.update.cia";
+   Result result = amInit();
+   if (R_FAILED(result)) {
+      snprintf(upd_error, sizeof(upd_error), "AM unavailable (%08lX).", (unsigned long)(u32)result);
+      return false;
+   }
+   u64 title_id = UNBOUND_TITLE_ID;
+   AM_TitleInfo installed, candidate;
+   result = AM_GetTitleInfo(MEDIATYPE_SD, 1, &title_id, &installed);
+   if (R_FAILED(result)) {
+      snprintf(upd_error, sizeof(upd_error), "Could not read installed CIA version.");
+      amExit();
+      return false;
+   }
+   if (!download_asset("unbound-dual.cia", stage)) {
+      amExit();
+      return false;
+   }
+   Handle input;
+   result = FSUSER_OpenFileDirectly(&input, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""),
+         fsMakePath(PATH_ASCII, stage + sizeof("sdmc:") - 1), FS_OPEN_READ, 0);
+   if (R_SUCCEEDED(result)) {
+      result = AM_GetCiaFileInfo(MEDIATYPE_SD, &candidate, input);
+      if (R_SUCCEEDED(result) &&
+          (candidate.titleID != title_id || candidate.version <= installed.version)) {
+         snprintf(upd_error, sizeof(upd_error), "Unexpected CIA title or version.");
+         FSFILE_Close(input);
+         remove(stage);
+         amExit();
+         return false;
+      }
+      u64 length = 0;
+      if (R_SUCCEEDED(result)) result = FSFILE_GetSize(input, &length);
+      void *buffer = R_SUCCEEDED(result) ? memalign(0x1000, 64*1024) : NULL;
+      if (R_SUCCEEDED(result) && !buffer) {
+         snprintf(upd_error, sizeof(upd_error), "No memory for CIA installation.");
+      } else if (buffer) {
+         Handle output;
+         result = AM_StartCiaInstall(MEDIATYPE_SD, &output);
+         if (R_SUCCEEDED(result)) {
+            for (u64 offset = 0; offset < length;) {
+               u32 want = length - offset < 64*1024 ? (u32)(length-offset) : 64*1024;
+               u32 got = 0, written = 0;
+               result = FSFILE_Read(input, &got, offset, buffer, want);
+               if (R_FAILED(result) || got != want) {
+                  if (R_SUCCEEDED(result)) result = -1;
+                  break;
+               }
+               result = FSFILE_Write(output, &written, offset, buffer, got, 0);
+               if (R_FAILED(result) || written != got) {
+                  if (R_SUCCEEDED(result)) result = -1;
+                  break;
+               }
+               offset += written;
+            }
+            if (R_SUCCEEDED(result)) result = AM_FinishCiaInstall(output);
+            else AM_CancelCIAInstall(output);
+         }
+         free(buffer);
+      }
+      FSFILE_Close(input);
+   }
+   remove(stage);
+   amExit();
+   if (R_FAILED(result) && !upd_error[0])
+      snprintf(upd_error, sizeof(upd_error), "CIA install failed (%08lX).", (unsigned long)(u32)result);
+   return R_SUCCEEDED(result) && !upd_error[0];
+}
+
 #endif
 
 bool update_install(const char *launch_path)
@@ -365,6 +440,9 @@ bool update_install(const char *launch_path)
       upd_thr = NULL;
    }
    upd_error[0] = 0;
+   u64 program_id = 0;
+   if (!envIsHomebrew() && R_SUCCEEDED(APT_GetProgramID(&program_id)) && program_id == UNBOUND_TITLE_ID)
+      return install_cia();
    char stage[544], backup[544];
    size_t n = launch_path ? strlen(launch_path) : 0;
    if (n < 12 || n > 512 || strncmp(launch_path, "sdmc:/", 6) ||

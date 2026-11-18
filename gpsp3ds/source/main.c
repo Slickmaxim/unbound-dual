@@ -3190,7 +3190,7 @@ static void menu_build(int tab)
          else
             snprintf(about, sizeof(about), FRONTEND_NAME
 #ifdef CP_ENABLED
-                     " v0.2.0 test 8"
+                     " v0.2.0 test 9"
 #else
                      " " GPSP3D_VERSION
 #endif
@@ -4302,8 +4302,11 @@ int main(int argc, char **argv)
    bool dynarec;
    if (argc > 0 && argv && argv[0]) {
       const char *prefix = argv[0][0] == '/' ? "sdmc:" : "";
-      if (strlen(prefix) + strlen(argv[0]) < sizeof(update_launch_path))
-         snprintf(update_launch_path,sizeof(update_launch_path),"%s%s",prefix,argv[0]);
+      size_t prefix_len = strlen(prefix), path_len = strlen(argv[0]);
+      if (prefix_len + path_len < sizeof(update_launch_path)) {
+         memcpy(update_launch_path, prefix, prefix_len);
+         memcpy(update_launch_path + prefix_len, argv[0], path_len + 1);
+      }
    }
 
    prof_defer_log = true;   /* no SD writes from the profiler while playing */
