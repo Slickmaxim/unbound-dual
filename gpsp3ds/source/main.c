@@ -2,8 +2,12 @@
 #ifdef CP_ENABLED
 #include "../companion/localization.h"
 #include "../companion/bag_refresh.h"
+#define UPDATE_VERSION "0.2.0"
+#define UPDATE_APP "Unbound Dual"
 #else
 #define ud_tr(s) (s)
+#define UPDATE_VERSION GPSP3D_VERSION
+#define UPDATE_APP "gpSP 3D"
 #endif
 /*
  * gpSP 3D - standalone gpSP frontend for Nintendo 3DS
@@ -2291,7 +2295,7 @@ static void browse_draw(int sel, int top)
       static char notice[64];
       notice[0] = 0;
       if (opt_update && update_state() == UPD_NEWER)
-         snprintf(notice, sizeof(notice), "gpSP 3D %s is out: update in Universal-Updater", update_latest());
+         snprintf(notice, sizeof(notice), UPDATE_APP " %s is out. See GitHub Releases.", update_latest());
       scr_browser_notice = notice[0] ? notice : NULL;
    }
    scr_browser(cur_dir + 5, names, isdir, n_entries, sel, top);
@@ -3146,18 +3150,18 @@ static void menu_build(int tab)
                static char upd_help[96];
                int st = update_state();
                snprintf(upd_help, sizeof(upd_help), "%s",
-                  !opt_update     ? "On: when gpSP 3D starts, ask GitHub if a\nnew version is out (needs Wi-Fi)." :
+                  !opt_update     ? "On: at startup, ask GitHub if a\nnew version is out (needs Wi-Fi)." :
                   st == UPD_NEWER ? "" :
                   st == UPD_CURRENT ? "You have the latest version." :
                   st == UPD_CHECKING ? "Checking..." :
-                  st == UPD_OFFLINE ? "No Wi-Fi when gpSP 3D started, so it\ndidn't check. Checks again next start." :
+                  st == UPD_OFFLINE ? "No Wi-Fi at startup, so it\ndidn't check. Checks again next start." :
                   st == UPD_FAILED  ? "" :
-                                      "Checks when gpSP 3D starts (needs Wi-Fi).");
+                                      "Checks at startup (needs Wi-Fi).");
                if (opt_update && st == UPD_FAILED)
                   snprintf(upd_help, sizeof(upd_help), ud_tr("Couldn't reach GitHub (%s:\n%.50s). Off/On retries."),
                            update_method(), update_error());
                if (opt_update && st == UPD_NEWER)
-                  snprintf(upd_help, sizeof(upd_help), ud_tr("Version %s is out. Update it in\nUniversal-Updater (or FBI, see GitHub)."), update_latest());
+                  snprintf(upd_help, sizeof(upd_help), ud_tr("Version %s is out. Update it in\nGitHub Releases (CIA via FBI)."), update_latest());
                mrow_choice(M_UPDATE, "Check for updates", opt_update ? "On" : "Off", upd_help);
             }
          }
@@ -3176,11 +3180,11 @@ static void menu_build(int tab)
                                         ra ? "RetroArch folder" : "Next to the game";
          }
          if (update_state() == UPD_NEWER)
-            snprintf(about, sizeof(about), "%s  (%s is out)", GPSP3D_VERSION, update_latest());
+            snprintf(about, sizeof(about), "%s  (%s is out)", UPDATE_VERSION, update_latest());
          else
             snprintf(about, sizeof(about), FRONTEND_NAME
 #ifdef CP_ENABLED
-                     " v0.2.0 test 7"
+                     " v0.2.0 test 8"
 #else
                      " " GPSP3D_VERSION
 #endif
@@ -3342,7 +3346,7 @@ static const char *menu_change(int id, int dir, bool has_value, int value)
          if (opt_bottom == 3) guide_shown = false;
 #endif
          break;
-      case M_UPDATE:   opt_update ^= 1; if (opt_update) update_check_start(GPSP3D_VERSION); break;
+      case M_UPDATE:   opt_update ^= 1; if (opt_update) update_check_start(UPDATE_VERSION); break;
       case M_CORE2:
          opt_core2 ^= 1;
          core2_apply();
@@ -4310,7 +4314,7 @@ int main(int argc, char **argv)
    mkdir(APP_DIR, 0777);
    config_load();
    if (opt_update)
-      update_check_start(GPSP3D_VERSION);
+      update_check_start(UPDATE_VERSION);
    if (!dir_exists(cur_dir))
       strcpy(cur_dir, "sdmc:/");
 

@@ -77,7 +77,7 @@ To choose a different ROM, open **MENU → System → Unbound ROM**. A missing o
 | Supported game | Pokémon Unbound 2.1.1.1, English |
 | English ROM SHA-1 | `b4776b82a4c7915d0fadeaa27e013523f99dfd94` |
 | Application Title ID | `000400000BAC8200` |
-| Companion CIA version | `0.0.12` (test 7) |
+| Companion CIA version | `0.0.13` (test 8) |
 | Base emulator | gpSP 3D v0.1.7 |
 
 ROMs, Nintendo's BIOS and saves are not included. The open source BIOS replacement inherited from gpSP is supplied with its source under `bios/`.

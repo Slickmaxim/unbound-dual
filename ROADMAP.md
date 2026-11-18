@@ -204,3 +204,6 @@ Sonic Advance 1 and 2, Ace Combat Advance, Asterix, Downhill Jam, Pokémon Emera
 - Fixed-rate Bag presentation (CIA 0.0.11): reverted ce6daba's adaptive scrolling and inventory-row cache, restoring those paths to 135cc49. While Bag is open, force draw/present on a 33333 us timer regardless of input, dirty state, spare time or drawing cost. Other tabs keep original scheduling. No catch-up bursts after stalls; profile actual delivered Bag FPS and mean work cost. Fixed cadence host tests pass; actual console throughput and game-speed impact await validation.
 
 - Bag scroll updates (CIA 0.0.12). Keep the 30 Hz scroll target and redraw only the list and scrollbar for drag frames. Retain the sorted rows and static artwork between full draws, and update the affected rectangle in the bottom framebuffer once both buffers contain the current page. Stationary Bag uses the existing RAM polling and redraws on visible changes. Actual game and scroll performance await console validation.
+
+
+- Check Unbound Dual stable releases at startup using its own GitHub repository and project version. Show the release in settings, with installation through GitHub Releases. CIA test build 0.0.13.

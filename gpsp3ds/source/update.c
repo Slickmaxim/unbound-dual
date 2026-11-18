@@ -17,8 +17,14 @@
 #include <curl/curl.h>
 #endif
 
-#define LATEST_URL "https://github.com/bheppe/gpsp-3d/releases/latest"
+#ifdef CP_ENABLED
+#define RELEASE_ROOT "https://github.com/Slickmaxim/unbound-dual/releases/"
+#define USER_AGENT "Unbound-Dual-update-check"
+#else
+#define RELEASE_ROOT "https://github.com/bheppe/gpsp-3d/releases/"
 #define USER_AGENT "gpSP-3D-update-check"
+#endif
+#define LATEST_URL RELEASE_ROOT "latest"
 
 static Thread         upd_thr;
 static volatile bool  upd_running, upd_cancel;
@@ -57,16 +63,19 @@ static bool wifi_up(void)
 /* .../releases/tag/v0.1.7 -> "0.1.7" */
 static bool take_tag(const char *loc)
 {
-   const char *t = loc ? strstr(loc, "/tag/") : NULL;
+   static const char prefix[] = RELEASE_ROOT "tag/";
+   const char *t = loc && !strncmp(loc, prefix, sizeof(prefix)-1) ? loc+sizeof(prefix)-1 : NULL;
    size_t n;
    if (!t)
       return false;
-   t += 5;
    if (*t == 'v' || *t == 'V')
       t++;
    n = strcspn(t, "/?#\r\n");
    if (n == 0 || n >= sizeof(upd_latest))
       return false;
+   for (size_t i = 0; i < n; ++i)
+      if ((t[i] < '0' || t[i] > '9') && t[i] != '.') return false;
+   if (t[0] == '.' || t[n-1] == '.') return false;
    memcpy(upd_latest, t, n);
    upd_latest[n] = 0;
    upd_state = ver_cmp(upd_latest, upd_current) > 0 ? UPD_NEWER : UPD_CURRENT;
